@@ -1437,7 +1437,7 @@ public class GenericRequest implements Runnable {
     }
 
     this.formConnection.setRequestProperty("User-Agent", GenericRequest.userAgent);
-    this.formConnection.setRequestProperty("Accept-Encoding", "gzip");
+    // this.formConnection.setRequestProperty("Accept-Encoding", "gzip");
 
     if (!this.data.isEmpty()) {
       if (this.dataChanged) {
