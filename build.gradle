@@ -192,11 +192,7 @@ task getRevision() {
 	onlyIf {
 		file('.git').exists()
 	}
-<<<<<<< HEAD
-	def commit = findProperty("commit") ?: 'upstream/main'
-=======
 	def commit = findProperty("commit") ?: 'origin/main'
->>>>>>> parent of 85f849561 (point gradle at this branch)
 	inputs.dir('.git')
 	inputs.property('commit', commit)
 	outputs.files file('build/revision.txt')
