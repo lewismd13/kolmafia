@@ -87,25 +87,9 @@ import net.sourceforge.kolmafia.webui.DiscoCombatHelper;
  * extensibility.
  */
 public abstract class KoLCharacter {
-  private static final String NONE = "None";
-
   public static final String WAR_BLESSING = "War";
   public static final String STORM_BLESSING = "Storm";
   public static final String SHE_WHO_WAS_BLESSING = "She-who-was";
-
-  // Classes
-  public static final String[] ZODIACS =
-      new String[] {
-        "Mongoose",
-        "Wallaby",
-        "Vole",
-        "Platypus",
-        "Opossum",
-        "Marmot",
-        "Wombat",
-        "Blender",
-        "Packrat"
-      };
 
   public static final int MALE = -1;
   public static final int FEMALE = 1;
@@ -128,10 +112,7 @@ public abstract class KoLCharacter {
   private static boolean restricted = false;
 
   private static int ascensions = 0;
-  private static String ascensionSign = NONE;
-  private static int ascensionSignIndex = 0;
-  private static ZodiacType ascensionSignType = ZodiacType.NONE;
-  private static ZodiacZone ascensionSignZone = ZodiacZone.NONE;
+  private static ZodiacSign ascensionSign = ZodiacSign.NONE;
   private static Path ascensionPath = Path.NONE;
 
   // Things which can change over the course of playing
@@ -371,10 +352,7 @@ public abstract class KoLCharacter {
     KoLCharacter.AWOLtattoo = 0;
 
     KoLCharacter.ascensions = 0;
-    KoLCharacter.ascensionSign = NONE;
-    KoLCharacter.ascensionSignIndex = 0;
-    KoLCharacter.ascensionSignType = ZodiacType.NONE;
-    KoLCharacter.ascensionSignZone = ZodiacZone.NONE;
+    KoLCharacter.ascensionSign = ZodiacSign.NONE;
     KoLCharacter.ascensionPath = Path.NONE;
 
     KoLCharacter.mindControlLevel = 0;
@@ -3047,7 +3025,7 @@ public abstract class KoLCharacter {
    * @return String
    */
   public static final String getSign() {
-    return KoLCharacter.ascensionSign;
+    return KoLCharacter.ascensionSign.getName();
   }
 
   /**
@@ -3056,7 +3034,7 @@ public abstract class KoLCharacter {
    * @return String
    */
   public static final int getSignIndex() {
-    return KoLCharacter.ascensionSignIndex;
+    return KoLCharacter.ascensionSign.getId();
   }
 
   /**
@@ -3065,7 +3043,7 @@ public abstract class KoLCharacter {
    * @return int
    */
   public static final ZodiacType getSignStat() {
-    return KoLCharacter.ascensionSignType;
+    return KoLCharacter.ascensionSign.getType();
   }
 
   /**
@@ -3074,7 +3052,7 @@ public abstract class KoLCharacter {
    * @return int
    */
   public static final ZodiacZone getSignZone() {
-    return KoLCharacter.ascensionSignZone;
+    return KoLCharacter.ascensionSign.getZone();
   }
 
   /**
@@ -3111,56 +3089,16 @@ public abstract class KoLCharacter {
       ascensionSign = ascensionSign.substring(4);
     }
 
+    KoLCharacter.ascensionSign = ZodiacSign.find(ascensionSign);
+  }
+
+  /**
+   * Accessor method to set a character's zodiac sign
+   *
+   * @param ascensionSign the new sign
+   */
+  public static final void setSign(ZodiacSign ascensionSign) {
     KoLCharacter.ascensionSign = ascensionSign;
-
-    // Determine the sign "type" --> the stat that gets +10% XP bonus
-    // Determine the sign "zone" --> the NPC area available for shopping
-
-    if (ascensionSign.equals("Mongoose")) {
-      KoLCharacter.ascensionSignIndex = 1;
-      KoLCharacter.ascensionSignType = ZodiacType.MUSCLE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.KNOLL;
-    } else if (ascensionSign.equals("Platypus")) {
-      KoLCharacter.ascensionSignIndex = 4;
-      KoLCharacter.ascensionSignType = ZodiacType.MUSCLE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.CANADIA;
-    } else if (ascensionSign.equals("Wombat")) {
-      KoLCharacter.ascensionSignIndex = 7;
-      KoLCharacter.ascensionSignType = ZodiacType.MUSCLE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.GNOMADS;
-    } else if (ascensionSign.equals("Wallaby")) {
-      KoLCharacter.ascensionSignIndex = 2;
-      KoLCharacter.ascensionSignType = ZodiacType.MYSTICALITY;
-      KoLCharacter.ascensionSignZone = ZodiacZone.KNOLL;
-    } else if (ascensionSign.equals("Opossum")) {
-      KoLCharacter.ascensionSignIndex = 5;
-      KoLCharacter.ascensionSignType = ZodiacType.MYSTICALITY;
-      KoLCharacter.ascensionSignZone = ZodiacZone.CANADIA;
-    } else if (ascensionSign.equals("Blender")) {
-      KoLCharacter.ascensionSignIndex = 8;
-      KoLCharacter.ascensionSignType = ZodiacType.MYSTICALITY;
-      KoLCharacter.ascensionSignZone = ZodiacZone.GNOMADS;
-    } else if (ascensionSign.equals("Vole")) {
-      KoLCharacter.ascensionSignIndex = 3;
-      KoLCharacter.ascensionSignType = ZodiacType.MOXIE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.KNOLL;
-    } else if (ascensionSign.equals("Marmot")) {
-      KoLCharacter.ascensionSignIndex = 6;
-      KoLCharacter.ascensionSignType = ZodiacType.MOXIE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.CANADIA;
-    } else if (ascensionSign.equals("Packrat")) {
-      KoLCharacter.ascensionSignIndex = 9;
-      KoLCharacter.ascensionSignType = ZodiacType.MOXIE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.GNOMADS;
-    } else if (ascensionSign.equals("Bad Moon")) {
-      KoLCharacter.ascensionSignIndex = 10;
-      KoLCharacter.ascensionSignType = ZodiacType.BAD_MOON;
-      KoLCharacter.ascensionSignZone = ZodiacZone.NONE;
-    } else {
-      KoLCharacter.ascensionSignIndex = 0;
-      KoLCharacter.ascensionSignType = ZodiacType.NONE;
-      KoLCharacter.ascensionSignZone = ZodiacZone.NONE;
-    }
   }
 
   /**
@@ -3508,7 +3446,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character is in a Muscle sign
    */
   public static final boolean inMuscleSign() {
-    return KoLCharacter.ascensionSignType == ZodiacType.MUSCLE;
+    return KoLCharacter.getSignStat() == ZodiacType.MUSCLE;
   }
 
   /**
@@ -3520,7 +3458,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character is in a Mysticality sign
    */
   public static final boolean inMysticalitySign() {
-    return KoLCharacter.ascensionSignType == ZodiacType.MYSTICALITY;
+    return KoLCharacter.getSignStat() == ZodiacType.MYSTICALITY;
   }
 
   /**
@@ -3531,7 +3469,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character is in a Moxie sign
    */
   public static final boolean inMoxieSign() {
-    return KoLCharacter.ascensionSignType == ZodiacType.MOXIE;
+    return KoLCharacter.getSignStat() == ZodiacType.MOXIE;
   }
 
   /**
@@ -3542,7 +3480,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character is in Bad Moon
    */
   public static final boolean inBadMoon() {
-    return KoLCharacter.ascensionSignType == ZodiacType.BAD_MOON;
+    return KoLCharacter.getSignStat() == ZodiacType.BAD_MOON;
   }
 
   /**
@@ -3556,7 +3494,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character Can go inside Degrassi Knoll
    */
   public static final boolean knollAvailable() {
-    return KoLCharacter.ascensionSignZone == ZodiacZone.KNOLL
+    return KoLCharacter.getSignZone() == ZodiacZone.KNOLL
         && !Limitmode.limitZone("MusSign")
         && !KoLCharacter.isKingdomOfExploathing()
         && !KoLCharacter.inGoocore();
@@ -3572,7 +3510,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character can go to Little Canadia
    */
   public static final boolean canadiaAvailable() {
-    return KoLCharacter.ascensionSignZone == ZodiacZone.CANADIA
+    return KoLCharacter.getSignZone() == ZodiacZone.CANADIA
         && !Limitmode.limitZone("Little Canadia")
         && !KoLCharacter.isKingdomOfExploathing();
   }
@@ -3586,7 +3524,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character can go to the Gnomish Gnomads Camp
    */
   public static final boolean gnomadsAvailable() {
-    return (KoLCharacter.ascensionSignZone == ZodiacZone.GNOMADS)
+    return (KoLCharacter.getSignZone() == ZodiacZone.GNOMADS)
         && KoLCharacter.desertBeachAccessible()
         && !KoLCharacter.isKingdomOfExploathing();
   }
@@ -3597,7 +3535,7 @@ public abstract class KoLCharacter {
    * @return <code>true</code> if the character can potentially change monster level
    */
   public static final boolean mcdAvailable() {
-    switch (KoLCharacter.ascensionSignZone) {
+    switch (KoLCharacter.getSignZone()) {
       case CANADIA:
         // Direct access to the Mind Control Device
         return KoLCharacter.canadiaAvailable();
@@ -4970,7 +4908,7 @@ public abstract class KoLCharacter {
 
     // Look at sign-specific adjustments
     newModifiers.add(Modifiers.MONSTER_LEVEL, MCD, "MCD:MCD");
-    newModifiers.add(Modifiers.getModifiers("Sign", KoLCharacter.ascensionSign));
+    newModifiers.add(Modifiers.getModifiers("Sign", KoLCharacter.ascensionSign.getName()));
 
     // If we are out of ronin/hardcore, look at stat day adjustments
     if (KoLCharacter.canInteract() && !KoLmafia.statDay.equals("None")) {
