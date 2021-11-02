@@ -76,6 +76,10 @@ import net.sourceforge.kolmafia.utilities.ByteArrayStream;
 import net.sourceforge.kolmafia.utilities.CharacterEntities;
 import net.sourceforge.kolmafia.utilities.StringUtilities;
 
+/**
+ * See devdoc/ParseRoadmap.ebnf for a simplified representation of this class's parsing methods'
+ * call hierarchy.
+ */
 public class Parser {
   public static final String APPROX = "\u2248";
   public static final String PRE_INCREMENT = "++X";
@@ -3286,8 +3290,10 @@ public class Parser {
       if (slash) {
         slash = false;
         if (ch == '/') {
-          this.currentLine.makeToken(i - 1);
-          this.currentIndex += i - 1;
+          if (i > 1) {
+            this.currentLine.makeToken(i - 1);
+            this.currentIndex += i - 1;
+          }
           // Throw away the rest of the line
           this.currentLine.makeComment(this.restOfLine().length());
           this.currentIndex += this.restOfLine().length();
@@ -3549,8 +3555,10 @@ public class Parser {
       }
 
       resultString = line.substring(0, endIndex);
-      this.currentToken = this.currentLine.makeToken(endIndex);
-      this.readToken();
+      if (endIndex > 0) {
+        this.currentToken = this.currentLine.makeToken(endIndex);
+        this.readToken();
+      }
     }
 
     if (this.currentToken().equals(";")) {
@@ -3616,7 +3624,9 @@ public class Parser {
         final int commentEnd = restOfLine.indexOf("*/");
 
         if (commentEnd == -1) {
-          this.currentLine.makeComment(restOfLine.length());
+          if (!restOfLine.isEmpty()) {
+            this.currentLine.makeComment(restOfLine.length());
+          }
 
           this.currentLine = this.currentLine.nextLine;
           this.currentIndex = this.currentLine.offset;
@@ -3652,7 +3662,9 @@ public class Parser {
         final int commentEnd = restOfLine.indexOf("*/", 2);
 
         if (commentEnd == -1) {
-          this.currentLine.makeComment(restOfLine.length());
+          if (!restOfLine.isEmpty()) {
+            this.currentLine.makeComment(restOfLine.length());
+          }
 
           this.currentLine = this.currentLine.nextLine;
           this.currentIndex = this.currentLine.offset;
