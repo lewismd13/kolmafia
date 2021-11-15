@@ -360,7 +360,8 @@ public class Parser {
                   + "@"
                   + parser.getScriptName().replace(".ash", "").replaceAll("[^a-zA-Z0-9]", "_"),
               parser.mainMethod.getType(),
-              parser.mainMethod.getVariableReferences());
+              parser.mainMethod.getVariableReferences(),
+              parser.mainMethod.getDefinitionLocation());
       f.setScope(((UserDefinedFunction) parser.mainMethod).getScope());
       result.addFunction(f);
     }
@@ -475,8 +476,12 @@ public class Parser {
         continue;
       }
 
-      if ((t.getBaseType() instanceof AggregateType) && this.currentToken().equals("{")) {
-        result.addCommand(this.parseAggregateLiteral(result, (AggregateType) t), this);
+      if (this.currentToken().equals("{")) {
+        if (t.getBaseType() instanceof AggregateType) {
+          result.addCommand(this.parseAggregateLiteral(result, (AggregateType) t), this);
+        } else {
+          throw this.parseException("Aggregate type required to make an aggregate literal");
+        }
       } else {
         // Found a type but no function or variable to tie it to
         throw this.parseException("Type given but not used to declare anything");
@@ -678,8 +683,11 @@ public class Parser {
     // Add the function to the parent scope before we parse the
     // function scope to allow recursion.
 
+    Location functionLocation = this.makeLocation(functionName, this.peekLastToken());
+
     UserDefinedFunction f =
-        new UserDefinedFunction(functionName.content, functionType, variableReferences);
+        new UserDefinedFunction(
+            functionName.content, functionType, variableReferences, functionLocation);
 
     if (f.overridesLibraryFunction()) {
       throw this.overridesLibraryFunctionException(f);
@@ -769,7 +777,7 @@ public class Parser {
     } else if (scope != null && scope.findVariable(variableName.content) != null) {
       throw this.parseException("Variable " + variableName + " is already defined");
     } else {
-      result = new Variable(variableName.content, t);
+      result = new Variable(variableName.content, t, this.makeLocation(variableName));
     }
 
     this.readToken(); // read name
@@ -1065,10 +1073,20 @@ public class Parser {
       // yet ensured we are reading a MapLiteral, allow any
       // type of Value as the "key"
       Type dataType = data.getBaseType();
-      if ((isArray || arrayAllowed)
-          && this.currentToken().equals("{")
-          && dataType instanceof AggregateType) {
-        lhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
+      if (this.currentToken().equals("{")) {
+        if (!isArray && !arrayAllowed) {
+          // We know this is a map, but they placed
+          // an aggregate literal as a key
+          throw this.parseException(
+              "Expected a key of type " + index.toString() + ", found an aggregate");
+        }
+
+        if (dataType instanceof AggregateType) {
+          lhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
+        } else {
+          throw this.parseException(
+              "Expected an element of type " + dataType.toString() + ", found an aggregate");
+        }
       } else {
         lhs = this.parseExpression(scope);
       }
@@ -1134,8 +1152,13 @@ public class Parser {
 
       Evaluable rhs;
 
-      if (this.currentToken().equals("{") && dataType instanceof AggregateType) {
-        rhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
+      if (this.currentToken().equals("{")) {
+        if (dataType instanceof AggregateType) {
+          rhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
+        } else {
+          throw this.parseException(
+              "Expected a value of type " + dataType.toString() + ", found an aggregate");
+        }
       } else {
         rhs = this.parseExpression(scope);
       }
@@ -1736,6 +1759,8 @@ public class Parser {
       return null;
     }
 
+    Token tryStartToken = this.currentToken();
+
     this.readToken(); // try
 
     Scope body =
@@ -1757,7 +1782,8 @@ public class Parser {
       throw this.parseException("\"try\" without \"finally\" is pointless");
     }
 
-    return new Try(body, finalClause);
+    Location tryLocation = this.makeLocation(tryStartToken, this.peekPreviousToken());
+    return new Try(tryLocation, body, finalClause);
   }
 
   private Catch parseCatch(
@@ -1858,9 +1884,9 @@ public class Parser {
     // Define key variables of appropriate type
     VariableList varList = new VariableList();
     AggregateType type = (AggregateType) aggregate.getType().getBaseType();
-    Variable valuevar = new Variable("value", type.getDataType());
+    Variable valuevar = new Variable("value", type.getDataType(), this.makeZeroWidthLocation());
     varList.add(valuevar);
-    Variable indexvar = new Variable("index", type.getIndexType());
+    Variable indexvar = new Variable("index", type.getIndexType(), this.makeZeroWidthLocation());
     varList.add(indexvar);
 
     // Parse the key expression in a new scope containing 'index' and 'value'
@@ -1884,6 +1910,7 @@ public class Parser {
     this.readToken(); // foreach
 
     List<String> names = new ArrayList<>();
+    List<Location> locations = new ArrayList<>();
 
     while (true) {
       Token name = this.currentToken();
@@ -1900,6 +1927,7 @@ public class Parser {
         throw this.parseException("Key variable '" + name + "' is already defined");
       } else {
         names.add(name.content);
+        locations.add(this.makeLocation(name));
       }
 
       this.readToken(); // name
@@ -1929,7 +1957,10 @@ public class Parser {
     List<VariableReference> variableReferences = new ArrayList<>();
     Type type = aggregate.getType().getBaseType();
 
-    for (String name : names) {
+    for (int i = 0; i < names.size(); i++) {
+      String name = names.get(i);
+      Location location = locations.get(i);
+
       Type itype;
       if (type == null) {
         throw this.parseException("Too many key variables specified");
@@ -1943,7 +1974,7 @@ public class Parser {
         type = null;
       }
 
-      Variable keyvar = new Variable(name, itype);
+      Variable keyvar = new Variable(name, itype, location);
       varList.add(keyvar);
       variableReferences.add(new VariableReference(keyvar));
     }
@@ -2021,7 +2052,7 @@ public class Parser {
     }
 
     // Create integer index variable
-    Variable indexvar = new Variable(name.content, DataTypes.INT_TYPE);
+    Variable indexvar = new Variable(name.content, DataTypes.INT_TYPE, this.makeLocation(name));
 
     // Put index variable onto a list
     VariableList varList = new VariableList();
@@ -2077,7 +2108,7 @@ public class Parser {
         }
 
         // Create variable and add it to the scope
-        variable = new Variable(name.content, t);
+        variable = new Variable(name.content, t, this.makeLocation(name));
         scope.addVariable(variable);
       }
 
@@ -2282,8 +2313,17 @@ public class Parser {
 
         if (this.currentToken().equals(",")) {
           val = Value.locate(DataTypes.VOID_VALUE);
-        } else if (this.currentToken().equals("{") && expected instanceof AggregateType) {
-          val = this.parseAggregateLiteral(scope, (AggregateType) expected);
+        } else if (this.currentToken().equals("{")) {
+          if (expected instanceof AggregateType) {
+            val = this.parseAggregateLiteral(scope, (AggregateType) expected);
+          } else {
+            throw this.parseException(
+                "Aggregate literal found when "
+                    + expected
+                    + " expected for field #"
+                    + (param + 1)
+                    + errorMessageFieldName);
+          }
         } else {
           val = this.parseExpression(scope);
         }
