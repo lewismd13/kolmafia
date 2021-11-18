@@ -4,6 +4,7 @@ import static net.sourceforge.kolmafia.textui.ScriptData.invalid;
 import static net.sourceforge.kolmafia.textui.ScriptData.valid;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
@@ -48,12 +49,23 @@ public class ForLoopTest {
             scope -> {
               List<Command> commands = scope.getCommandList();
 
+              // Loop location test
               ForLoop forLoop = assertInstanceOf(ForLoop.class, commands.get(0));
-              Scope loopScope = forLoop.getScope();
-              Iterator<Variable> variables = loopScope.getVariables().iterator();
+              // From the "for" up to the end of its scope
+              ParserTest.assertLocationEquals(1, 1, 1, 30, forLoop.getLocation());
 
+              // Scope location test
+              Scope loopScope = forLoop.getScope();
+              ParserTest.assertLocationEquals(1, 29, 1, 30, loopScope.getLocation());
+
+              // Variable + VariableReference location test
+              Iterator<Variable> variables = loopScope.getVariables().iterator();
               assertTrue(variables.hasNext());
-              ParserTest.assertLocationEquals(1, 5, 1, 6, variables.next().getLocation());
+              Variable var = variables.next();
+              VariableReference varRef = forLoop.getVariable();
+              ParserTest.assertLocationEquals(1, 5, 1, 6, var.getLocation());
+              ParserTest.assertLocationEquals(1, 5, 1, 6, varRef.getLocation());
+              assertSame(var, varRef.target);
               assertFalse(variables.hasNext());
             }),
         valid(
