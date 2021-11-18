@@ -4,6 +4,7 @@ import static net.sourceforge.kolmafia.textui.ScriptData.invalid;
 import static net.sourceforge.kolmafia.textui.ScriptData.valid;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
@@ -61,14 +62,32 @@ public class ForEachLoopTest {
             scope -> {
               List<Command> commands = scope.getCommandList();
 
+              // Loop location test
               ForEachLoop forLoop = assertInstanceOf(ForEachLoop.class, commands.get(0));
-              Scope loopScope = forLoop.getScope();
-              Iterator<Variable> variables = loopScope.getVariables().iterator();
+              // From the "foreach" up to the end of its scope
+              ParserTest.assertLocationEquals(1, 1, 1, 36, forLoop.getLocation());
 
+              // Scope location test
+              Scope loopScope = forLoop.getScope();
+              ParserTest.assertLocationEquals(1, 34, 1, 36, loopScope.getLocation());
+
+              // Variable + VariableReference location test
+              Iterator<Variable> variables = loopScope.getVariables().iterator();
+              List<VariableReference> references = forLoop.getVariableReferences();
+              // key
               assertTrue(variables.hasNext());
-              ParserTest.assertLocationEquals(1, 9, 1, 12, variables.next().getLocation());
+              Variable var = variables.next();
+              VariableReference varRef = references.get(0);
+              ParserTest.assertLocationEquals(1, 9, 1, 12, var.getLocation());
+              ParserTest.assertLocationEquals(1, 9, 1, 12, varRef.getLocation());
+              assertSame(var, varRef.target);
+              // value
               assertTrue(variables.hasNext());
-              ParserTest.assertLocationEquals(1, 14, 1, 19, variables.next().getLocation());
+              var = variables.next();
+              varRef = references.get(1);
+              ParserTest.assertLocationEquals(1, 14, 1, 19, var.getLocation());
+              ParserTest.assertLocationEquals(1, 14, 1, 19, varRef.getLocation());
+              assertSame(var, varRef.target);
               assertFalse(variables.hasNext());
             }),
         invalid(

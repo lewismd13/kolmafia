@@ -24,7 +24,21 @@ public class JavaForLoopTest {
             "valid empty Java for-loop",
             "for (;;) {}",
             Arrays.asList("for", "(", ";", ";", ")", "{", "}"),
-            Arrays.asList("1-1", "1-5", "1-6", "1-7", "1-8", "1-10", "1-11")),
+            Arrays.asList("1-1", "1-5", "1-6", "1-7", "1-8", "1-10", "1-11"),
+            scope -> {
+              List<Command> commands = scope.getCommandList();
+
+              // Scope location test
+              JavaForLoop forLoop = assertInstanceOf(JavaForLoop.class, commands.get(0));
+              Scope loopScope = forLoop.getScope();
+              ParserTest.assertLocationEquals(1, 10, 1, 12, loopScope.getLocation());
+
+              // Implicit value location test
+              Value.Constant condition =
+                  assertInstanceOf(Value.Constant.class, forLoop.getCondition());
+              // Zero-width location made at the beginning of the semi-colon
+              ParserTest.assertLocationEquals(1, 7, 1, 7, condition.getLocation());
+            }),
         valid(
             "Java for-loop with new variable",
             "for (int i = 0; i < 5; ++i) {}",
@@ -79,14 +93,20 @@ public class JavaForLoopTest {
             scope -> {
               List<Command> commands = scope.getCommandList();
 
+              // Loop location test
               JavaForLoop forLoop = assertInstanceOf(JavaForLoop.class, commands.get(1));
-              Scope loopScope = forLoop.getScope();
-              Iterator<Variable> variables = loopScope.getVariables().iterator();
+              // From the "for" up to the end of its scope
+              ParserTest.assertLocationEquals(1, 8, 1, 30, forLoop.getLocation());
 
+              // Scope location test
+              Scope loopScope = forLoop.getScope();
+              ParserTest.assertLocationEquals(1, 29, 1, 30, loopScope.getLocation());
+
+              // Variable location test
+              Iterator<Variable> variables = loopScope.getVariables().iterator();
               assertFalse(variables.hasNext());
 
               variables = loopScope.getParentScope().getVariables().iterator();
-
               assertTrue(variables.hasNext());
               ParserTest.assertLocationEquals(1, 5, 1, 6, variables.next().getLocation());
               assertFalse(variables.hasNext());
