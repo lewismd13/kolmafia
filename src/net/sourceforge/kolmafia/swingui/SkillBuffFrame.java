@@ -39,7 +39,7 @@ public class SkillBuffFrame extends GenericFrame {
   private SkillSelectComboBox skillSelect;
   private AutoHighlightTextField amountField;
   private EditableAutoFilterComboBox targetSelect;
-  private final ShowDescriptionList effectList;
+  private final ShowDescriptionList<AdventureResult> effectList;
 
   public SkillBuffFrame() {
     this("");
@@ -52,7 +52,7 @@ public class SkillBuffFrame extends GenericFrame {
     skillWrapper.add(new SkillBuffPanel(), BorderLayout.NORTH);
 
     this.effectList =
-        new ShowDescriptionList(
+        new ShowDescriptionList<>(
             (LockableListModel<AdventureResult>) KoLConstants.activeEffects, 12);
     this.effectList.addListSelectionListener(new SkillReselector());
 
@@ -95,7 +95,7 @@ public class SkillBuffFrame extends GenericFrame {
 
   private class SkillReselector implements ListSelectionListener {
     public void valueChanged(final ListSelectionEvent e) {
-      AdventureResult effect = (AdventureResult) SkillBuffFrame.this.effectList.getSelectedValue();
+      AdventureResult effect = SkillBuffFrame.this.effectList.getSelectedValue();
       if (effect == null) {
         return;
       }
@@ -458,8 +458,8 @@ public class SkillBuffFrame extends GenericFrame {
 
     private class SkillTypeListener implements ActionListener {
       public void actionPerformed(final ActionEvent e) {
-        ComboBoxModel oldModel = SkillBuffFrame.this.skillSelect.getModel();
-        ComboBoxModel newModel = oldModel;
+        ComboBoxModel<UseSkillRequest> oldModel = SkillBuffFrame.this.skillSelect.getModel();
+        ComboBoxModel<UseSkillRequest> newModel = oldModel;
         switch (SkillTypeComboBox.this.getSelectedIndex()) {
           case 0:
             // All skills
