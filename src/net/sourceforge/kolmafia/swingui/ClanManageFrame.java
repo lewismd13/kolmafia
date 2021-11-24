@@ -295,7 +295,7 @@ public class ClanManageFrame extends GenericFrame {
     }
   }
 
-  private class StoragePanel extends ItemListManagePanel {
+  private class StoragePanel extends ItemListManagePanel<AdventureResult> {
     public StoragePanel() {
       super((SortedListModel<AdventureResult>) KoLConstants.inventory);
       this.setButtons(
@@ -324,7 +324,7 @@ public class ClanManageFrame extends GenericFrame {
   }
 
   /** Internal class used to handle everything related to placing items into the stash. */
-  private class WithdrawPanel extends ItemListManagePanel {
+  private class WithdrawPanel extends ItemListManagePanel<AdventureResult> {
     public WithdrawPanel() {
       super(ClanManager.getStash());
 
@@ -357,7 +357,7 @@ public class ClanManageFrame extends GenericFrame {
           if (items.length == 0) {
             AdventureResult[] itemsArray =
                 new AdventureResult[WithdrawPanel.this.elementModel.size()];
-            items = (AdventureResult[]) WithdrawPanel.this.elementModel.toArray(itemsArray);
+            items = WithdrawPanel.this.elementModel.toArray(itemsArray);
           }
 
           if (items.length == 0) {
@@ -440,27 +440,30 @@ public class ClanManageFrame extends GenericFrame {
 
       KoLmafia.updateDisplay("Determining changes...");
 
-      ArrayList titleChange = new ArrayList();
-      ArrayList newTitles = new ArrayList();
-      ArrayList boots = new ArrayList();
+      ArrayList<String> titleChange = new ArrayList<>();
+      ArrayList<String> newTitles = new ArrayList<>();
+      ArrayList<String> boots = new ArrayList<>();
 
       for (int i = 0; i < ClanManageFrame.this.members.getRowCount(); ++i) {
         if (((Boolean) ClanManageFrame.this.members.getValueAt(i, 4)).booleanValue()) {
-          boots.add(ClanManageFrame.this.members.getValueAt(i, 1));
+          boots.add((String) ClanManageFrame.this.members.getValueAt(i, 1));
         }
 
-        titleChange.add(ClanManageFrame.this.members.getValueAt(i, 1));
-        newTitles.add(ClanManageFrame.this.members.getValueAt(i, 2));
+        titleChange.add((String) ClanManageFrame.this.members.getValueAt(i, 1));
+        newTitles.add((String) ClanManageFrame.this.members.getValueAt(i, 2));
       }
 
       KoLmafia.updateDisplay("Applying changes...");
       RequestThread.postRequest(
-          new ClanMembersRequest(titleChange.toArray(), newTitles.toArray(), boots.toArray()));
+          new ClanMembersRequest(
+              titleChange.toArray(new String[0]),
+              newTitles.toArray(new String[0]),
+              boots.toArray(new String[0])));
       KoLmafia.updateDisplay("Changes have been applied.");
     }
   }
 
-  private class MemberTableModel extends ListWrapperTableModel {
+  private class MemberTableModel extends ListWrapperTableModel<ProfileRequest> {
     public MemberTableModel() {
       super(
           new String[] {" ", "Name", "Clan Title", "Total Karma", "Boot"},
