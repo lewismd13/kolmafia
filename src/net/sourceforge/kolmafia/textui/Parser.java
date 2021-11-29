@@ -505,7 +505,7 @@ public class Parser {
     this.readToken(); // read record
 
     if (this.currentToken().equals(";")) {
-      throw this.parseException("Record name expected");
+      throw this.parseException(this.currentToken(), "Record name expected");
     }
 
     // Allow anonymous records
@@ -516,11 +516,13 @@ public class Parser {
       recordName = this.currentToken().content;
 
       if (!this.parseIdentifier(recordName)) {
-        throw this.parseException("Invalid record name '" + recordName + "'");
+        throw this.parseException(this.currentToken(), "Invalid record name '" + recordName + "'");
       } else if (Parser.isReservedWord(recordName)) {
-        throw this.parseException("Reserved word '" + recordName + "' cannot be a record name");
+        throw this.parseException(
+            this.currentToken(), "Reserved word '" + recordName + "' cannot be a record name");
       } else if (parentScope.findType(recordName) != null) {
-        throw this.parseException("Record name '" + recordName + "' is already defined");
+        throw this.parseException(
+            this.currentToken(), "Record name '" + recordName + "' is already defined");
       }
 
       this.readToken(); // read name
@@ -543,7 +545,7 @@ public class Parser {
 
       if (this.currentToken().equals("}")) {
         if (fieldTypes.isEmpty()) {
-          throw this.parseException("Record field(s) expected");
+          throw this.parseException(this.currentToken(), "Record field(s) expected");
         }
 
         this.readToken(); // read }
@@ -553,24 +555,22 @@ public class Parser {
       // Get the field type
       Type fieldType = this.parseType(parentScope, true);
       if (fieldType == null) {
-        throw this.parseException("Type name expected");
-      }
-
-      if (fieldType.getBaseType().equals(DataTypes.VOID_TYPE)) {
-        throw this.parseException("Non-void field type expected");
+        throw this.parseException(this.currentToken(), "Type name expected");
+      } else if (fieldType.getBaseType().equals(DataTypes.VOID_TYPE)) {
+        throw this.parseException(fieldType.getLocation(), "Non-void field type expected");
       }
 
       // Get the field name
       Token fieldName = this.currentToken();
       if (fieldName.equals(";")) {
-        throw this.parseException("Field name expected");
+        throw this.parseException(fieldName, "Field name expected");
       } else if (!this.parseIdentifier(fieldName.content)) {
-        throw this.parseException("Invalid field name '" + fieldName + "'");
+        throw this.parseException(fieldName, "Invalid field name '" + fieldName + "'");
       } else if (Parser.isReservedWord(fieldName.content)) {
         throw this.parseException(
-            "Reserved word '" + fieldName + "' cannot be used as a field name");
+            fieldName, "Reserved word '" + fieldName + "' cannot be used as a field name");
       } else if (fieldNames.contains(fieldName.content)) {
-        throw this.parseException("Field name '" + fieldName + "' is already defined");
+        throw this.parseException(fieldName, "Field name '" + fieldName + "' is already defined");
       } else {
         this.readToken(); // read name
       }
@@ -1036,7 +1036,8 @@ public class Parser {
 
     if ((valType = this.parseRecord(scope)) != null) {
       if (!records) {
-        throw this.parseException("Existing type expected for function parameter");
+        throw this.parseException(
+            valType.getLocation(), "Existing type expected for function parameter");
       }
     } else if ((valType = scope.findType(this.currentToken().content)) != null) {
       valType = valType.reference(this.makeLocation(this.currentToken()));
@@ -1597,14 +1598,23 @@ public class Parser {
 
     Evaluable condition = this.parseExpression(parentScope);
 
+    if (condition == null) {
+      Location errorLocation = this.makeLocation(this.currentToken());
+
+      throw this.parseException(errorLocation, "Expression expected");
+    }
+
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
       throw this.parseException(")", this.currentToken());
     }
 
-    if (condition == null || !condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
-      throw this.parseException("\"while\" requires a boolean conditional expression");
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+      Location errorLocation = condition.getLocation();
+
+      throw this.parseException(
+          errorLocation, "\"while\" requires a boolean conditional expression");
     }
 
     Scope scope = this.parseLoopScope(functionType, null, parentScope);
@@ -1638,14 +1648,23 @@ public class Parser {
 
     Evaluable condition = this.parseExpression(parentScope);
 
+    if (condition == null) {
+      Location errorLocation = this.makeLocation(this.currentToken());
+
+      throw this.parseException(errorLocation, "Expression expected");
+    }
+
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
       throw this.parseException(")", this.currentToken());
     }
 
-    if (condition == null || !condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
-      throw this.parseException("\"repeat\" requires a boolean conditional expression");
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+      Location errorLocation = condition.getLocation();
+
+      throw this.parseException(
+          errorLocation, "\"repeat\" requires a boolean conditional expression");
     }
 
     Location repeatLocation = this.makeLocation(repeatStartToken, this.peekPreviousToken());
@@ -2011,11 +2030,12 @@ public class Parser {
           || name.equalsIgnoreCase("in")
               && !"in".equalsIgnoreCase(this.nextToken())
               && !",".equals(this.nextToken())) {
-        throw this.parseException("Key variable name expected");
+        throw this.parseException(name, "Key variable name expected");
       } else if (Parser.isReservedWord(name.content)) {
-        throw this.parseException("Reserved word '" + name + "' cannot be a key variable name");
+        throw this.parseException(
+            name, "Reserved word '" + name + "' cannot be a key variable name");
       } else if (names.contains(name.content)) {
-        throw this.parseException("Key variable '" + name + "' is already defined");
+        throw this.parseException(name, "Key variable '" + name + "' is already defined");
       } else {
         names.add(name.content);
         locations.add(this.makeLocation(name));
@@ -2040,7 +2060,10 @@ public class Parser {
     Evaluable aggregate = this.parseEvaluable(parentScope);
 
     if (aggregate == null || !(aggregate.getType().getBaseType() instanceof AggregateType)) {
-      throw this.parseException("Aggregate reference expected");
+      Location errorLocation =
+          aggregate != null ? aggregate.getLocation() : this.makeLocation(this.currentToken());
+
+      throw this.parseException(errorLocation, "Aggregate reference expected");
     }
 
     // Define key variables of appropriate type
@@ -2054,7 +2077,7 @@ public class Parser {
 
       Type itype;
       if (type == null) {
-        throw this.parseException("Too many key variables specified");
+        throw this.parseException(location, "Too many key variables specified");
       }
 
       if (type instanceof AggregateType) {
@@ -4189,11 +4212,32 @@ public class Parser {
       foundString = "end of file";
     }
 
-    return this.parseException("Expected " + expected + ", found " + foundString);
+    return this.parseException(found, "Expected " + expected + ", found " + foundString);
   }
 
   private ScriptException parseException(final String message) {
-    return new ScriptException(message + " " + this.getLineAndFile());
+    return this.parseException(this.getCurrentPosition(), message);
+  }
+
+  private ScriptException parseException(final Position start, final String message) {
+    return this.parseException(this.rangeToHere(start), message);
+  }
+
+  private ScriptException parseException(final Range range, final String message) {
+    return this.parseException(this.makeLocation(range), message);
+  }
+
+  private ScriptException parseException(final Range start, final Range end, final String message) {
+    return this.parseException(Parser.mergeRanges(start, end), message);
+  }
+
+  private ScriptException parseException(Location location, final String message) {
+    if (location == null) {
+      location = this.makeZeroWidthLocation();
+    }
+
+    return new ScriptException(
+        message + " (" + Parser.getFileAndRange(this.shortFileName, location.getRange()) + ")");
   }
 
   private ScriptException undefinedFunctionException(
@@ -4303,6 +4347,50 @@ public class Parser {
     }
 
     return "(" + fileName + ", line " + lineNumber + ")";
+  }
+
+  public static final String getFileAndRange(String fileName, final Range range) {
+    if (range == null || Positions.isBefore(range.getEnd(), range.getStart())) {
+      throw new IllegalArgumentException();
+    }
+
+    final StringBuilder result = new StringBuilder();
+
+    if (fileName == null) {
+      String commandLineNamespace = Preferences.getString("commandLineNamespace");
+
+      if (!commandLineNamespace.isEmpty()) {
+        result.append(commandLineNamespace);
+        result.append(", ");
+      }
+
+      // It's impossible to submit multiple lines from the command line, except maybe with
+      // "ash cli_execute('ash \n')"
+      // As such, don't display the start's line if it's '0', because it can easily be assumed.
+      if (range.getStart().getLine() > 0) {
+        result.append("line " + (range.getStart().getLine() + 1));
+        result.append(", ");
+      }
+    } else {
+      result.append(fileName);
+      result.append(", line " + (range.getStart().getLine() + 1));
+      result.append(", ");
+    }
+
+    result.append("char " + (range.getStart().getCharacter() + 1));
+
+    if (!range.getStart().equals(range.getEnd())) {
+      result.append(" to ");
+
+      if (range.getStart().getLine() < range.getEnd().getLine()) {
+        result.append("line " + (range.getEnd().getLine() + 1));
+        result.append(", ");
+      }
+
+      result.append("char " + (range.getEnd().getCharacter() + 1));
+    }
+
+    return result.toString();
   }
 
   public static void printIndices(
