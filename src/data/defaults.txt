@@ -422,6 +422,7 @@ user	cocktailSummons	0
 user	coldAirportAlways	false
 user	commaFamiliar
 user	commerceGhostItem
+user	commerceGhostCombats	 0
 user	considerShadowNoodles	false
 user	controlRoomUnlock	false
 user	counterScript
@@ -460,8 +461,7 @@ user	crimbotChassis
 user	crimbotArm
 user	crimbotPropulsion	
 user	crudeMonster
-user	crystalBallLocation
-user	crystalBallMonster
+user	crystalBallPredictions
 user	csServicesPerformed	
 user	cubelingProgress	0
 user	currentEasyBountyItem	
