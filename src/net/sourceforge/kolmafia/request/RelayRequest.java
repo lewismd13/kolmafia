@@ -2952,7 +2952,7 @@ public class RelayRequest extends PasswordHashRequest {
                 + "<a href=\""
                 + refreshURL
                 + "\">"
-                + "Automating (see CLI for details, click to refresh)..."
+                + "Reticulating splines (see CLI for details, click to refresh)..."
                 + "</a><p>"
                 + RelayRequest.specialCommandStatus
                 + "</p></body></html>";
@@ -2991,7 +2991,7 @@ public class RelayRequest extends PasswordHashRequest {
       } else {
         // specialCommand invoked for command that doesn't
         // specifically support it - we have no page to display.
-        this.pseudoResponse("HTTP/1.1 200 OK", "<html><body>Automation complete.</body></html>");
+        this.pseudoResponse("HTTP/1.1 200 OK", "<html><body><p style='font-family:arial'>Automation complete.</p></body></html>");
       }
     } else if (path.endsWith("logout")) {
       submitCommand("logout");
