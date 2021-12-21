@@ -2176,7 +2176,21 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
     {
       "That isn't a place you can go\\.", "You can't get there from here.",
     },
+
+    // Site Alpha Dormitory
+    //
+    // It's getting colder! Better bundle up.
+    // The extreme cold makes it impossible for you to continue...
+    {
+      "Better bundle up", "You need more cold resistance.",
+    },
+    {
+      "extreme cold makes it impossible", "You need more cold resistance.",
+    },
   };
+
+  private static Pattern CRIMBO21_COLD_RES =
+      Pattern.compile("<b>\\[(\\d+) Cold Resistance Required\\]</b>");
 
   public static final int findAdventureFailure(String responseText) {
     // KoL is known to sometimes simply return a blank page as a
@@ -2192,6 +2206,13 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       Preferences.setInteger("fratboysDefeated", 1000);
     } else if (responseText.contains("Drippy Juice supply")) {
       Preferences.setInteger("drippyJuice", 0);
+    } else if (responseText.contains("Better bundle up")
+        || responseText.contains("extreme cold makes it impossible")) {
+      Matcher matcher = CRIMBO21_COLD_RES.matcher(responseText);
+      if (matcher.find()) {
+        int required = Integer.parseInt(matcher.group(1));
+        Preferences.setInteger("_crimbo21ColdResistance", required);
+      }
     }
 
     for (int i = 1; i < ADVENTURE_FAILURES.length; ++i) {

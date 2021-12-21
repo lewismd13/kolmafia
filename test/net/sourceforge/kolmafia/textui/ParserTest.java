@@ -4,14 +4,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import net.sourceforge.kolmafia.KoLConstants;
 import net.sourceforge.kolmafia.preferences.Preferences;
 import net.sourceforge.kolmafia.textui.ScriptData.InvalidScriptData;
+import net.sourceforge.kolmafia.textui.ScriptData.InvalidScriptDataWithErrorFilterTest;
 import net.sourceforge.kolmafia.textui.ScriptData.ValidScriptData;
 import net.sourceforge.kolmafia.textui.ScriptData.ValidScriptDataWithLocationTests;
-import net.sourceforge.kolmafia.textui.parsetree.Scope;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
@@ -23,7 +26,13 @@ import org.junit.jupiter.params.provider.MethodSource;
 /** Tries to parse valid and invalid ASH programs. */
 public class ParserTest {
 
-  public static void testScriptValidity(ScriptData script) {
+  public static void testScriptValidity(final ScriptData script) {
+    // Wait until now to throw errors thrown during parsing, so that we can more easily tell which
+    // test/script threw it
+    if (script.parsingException != null) {
+      throw new RuntimeException(script.parsingException.getMessage(), script.parsingException);
+    }
+
     if (script instanceof InvalidScriptData) {
       testInvalidScript((InvalidScriptData) script);
       return;
@@ -33,24 +42,52 @@ public class ParserTest {
   }
 
   private static void testInvalidScript(final InvalidScriptData script) {
-    ScriptException e = assertThrows(ScriptException.class, script.parser::parse, script.desc);
-    assertThat(script.desc, e.getMessage(), startsWith(script.errorText));
+    assertFalse(script.errors.isEmpty(), script.desc);
 
-    if (script.errorLocationString != null) {
-      assertThat(script.desc, e.getMessage(), endsWith(" (" + script.errorLocationString + ")"));
+    // The error that changed the state of the script from "valid" to "invalid"
+    final String firstError = script.errors.get(0);
+
+    assertThat(script.desc, firstError, startsWith(script.errorText));
+    assertThat(script.desc, firstError, containsString(" (" + script.errorLocationString + ")"));
+
+    if (script instanceof InvalidScriptDataWithErrorFilterTest) {
+      final InvalidScriptData filteredScript =
+          ((InvalidScriptDataWithErrorFilterTest) script).filteredScript;
+
+      // Trigger the normal tests on that version
+      ParserTest.testScriptValidity(filteredScript);
+
+      // Confirm that the modified version doesn't contain the initial version's first error
+      if (filteredScript.errors.stream().anyMatch(error -> error.startsWith(script.errorText))) {
+        final StringBuilder message = new StringBuilder();
+
+        message.append(filteredScript.desc);
+        message.append(KoLConstants.LINE_BREAK);
+        message.append("The generated list of errors");
+        message.append(KoLConstants.LINE_BREAK);
+        message.append("[");
+        message.append(KoLConstants.LINE_BREAK);
+        message.append("  ");
+        message.append(String.join("," + KoLConstants.LINE_BREAK + "  ", filteredScript.errors));
+        message.append(KoLConstants.LINE_BREAK);
+        message.append("]");
+        message.append(KoLConstants.LINE_BREAK);
+        message.append("should not contain ");
+        message.append(script.errorText);
+
+        fail(message.toString());
+      }
     }
   }
 
   private static void testValidScript(final ValidScriptData script) {
-    final Scope scope;
+    assertTrue(script.errors.isEmpty(), script.desc);
 
-    // This will fail if an exception is thrown.
-    scope = script.parser.parse();
     assertEquals(script.tokens, getTokensContents(script.parser), script.desc);
     assertEquals(script.positions, getTokensPositions(script.parser), script.desc);
 
     if (script instanceof ValidScriptDataWithLocationTests) {
-      ((ValidScriptDataWithLocationTests) script).locationTests.accept(scope);
+      ((ValidScriptDataWithLocationTests) script).locationTests.accept(script.scope);
     }
   }
 
@@ -82,6 +119,53 @@ public class ParserTest {
     }
 
     assertEquals(expectedRange, actualRange);
+  }
+
+  @Test
+  public void testMultipleDiagnosticsPerParser() {
+    final String script =
+        "import fake/path"
+            + "\nstring foobar(string... foo, int bar) {"
+            + "\n    continue;"
+            + "\n}";
+    final ByteArrayInputStream istream =
+        new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8));
+    final Parser parser = new Parser(null, istream, null);
+
+    parser.parse();
+
+    final List<Parser.AshDiagnostic> diagnostics = parser.getDiagnostics();
+    assertEquals(4, diagnostics.size());
+
+    assertEquals("fake/path could not be found", diagnostics.get(0).message);
+    ParserTest.assertLocationEquals(1, 1, 1, 17, diagnostics.get(0).location);
+
+    assertEquals("The vararg parameter must be the last one", diagnostics.get(1).message);
+    ParserTest.assertLocationEquals(2, 30, 2, 33, diagnostics.get(1).location);
+
+    assertEquals("Encountered 'continue' outside of loop", diagnostics.get(2).message);
+    ParserTest.assertLocationEquals(3, 5, 3, 13, diagnostics.get(2).location);
+
+    assertEquals("Missing return value", diagnostics.get(3).message);
+    ParserTest.assertLocationEquals(2, 8, 2, 38, diagnostics.get(3).location);
+  }
+
+  @Test
+  public void testErrorFilter() {
+    final String script = "int a; max(a, b)";
+    final ByteArrayInputStream istream =
+        new ByteArrayInputStream(script.getBytes(StandardCharsets.UTF_8));
+    final Parser parser = new Parser(null, istream, null);
+
+    parser.parse();
+
+    final List<Parser.AshDiagnostic> diagnostics = parser.getDiagnostics();
+    assertEquals(1, diagnostics.size());
+
+    assertEquals("Unknown variable 'b'", diagnostics.get(0).message);
+    ParserTest.assertLocationEquals(1, 15, 1, 16, diagnostics.get(0).location);
+
+    // Note the lack of "Function 'max( int, <unknown> )' undefined."
   }
 
   public static Stream<Arguments> mergeLocationsData() {

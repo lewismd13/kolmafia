@@ -93,6 +93,7 @@ import net.sourceforge.kolmafia.persistence.FaxBotDatabase.FaxBot;
 import net.sourceforge.kolmafia.persistence.FaxBotDatabase.Monster;
 import net.sourceforge.kolmafia.persistence.HolidayDatabase;
 import net.sourceforge.kolmafia.persistence.ItemDatabase;
+import net.sourceforge.kolmafia.persistence.ItemDatabase.FoldGroup;
 import net.sourceforge.kolmafia.persistence.MallPriceDatabase;
 import net.sourceforge.kolmafia.persistence.MonsterDatabase;
 import net.sourceforge.kolmafia.persistence.MonsterDatabase.Element;
@@ -4877,11 +4878,10 @@ public abstract class RuntimeLibrary {
         }
       }
     } else if (which.equals("fold")) {
-      List list = ItemDatabase.getFoldGroup(item.toString());
+      FoldGroup list = ItemDatabase.getFoldGroup(item.toString());
       if (list == null) return value;
-      // Don't use element 0, that's the damage percentage
-      for (int i = list.size() - 1; i > 0; --i) {
-        value.aset(DataTypes.parseItemValue((String) list.get(i), true), new Value(i));
+      for (int i = list.names.size() - 1; i >= 0; --i) {
+        value.aset(DataTypes.parseItemValue(list.names.get(i), true), new Value(i + 1));
       }
     } else if (which.equals("pulverize")) { // All values scaled up by one million
       int pulver = EquipmentDatabase.getPulverization((int) item.intValue());
@@ -8975,7 +8975,10 @@ public abstract class RuntimeLibrary {
       CandyDatabase.loadBlacklist();
     }
 
-    while (KoLmafia.permitsContinue() && count > 0) {
+    // It is always beneficial to synthesize 1 call at a time, since the "best"
+    // pairing can change if you buy the last candy from a store, for example.
+
+    while (KoLmafia.permitsContinue() && count-- > 0) {
       Candy[] candies = CandyDatabase.synthesisPair(effectId, flags);
 
       if (candies.length != 2) {
@@ -8985,29 +8988,9 @@ public abstract class RuntimeLibrary {
       int itemId1 = candies[0].getItemId();
       int itemId2 = candies[1].getItemId();
 
-      int quantity = count;
-
-      // If we want "available" candies, synthesizePair above
-      // gave us only available candies. We may or may not
-      // have enough to synthesize more than once with that
-      // pair, so limit quantity to available amount
-
-      if (count > 1 && (flags & CandyDatabase.FLAG_AVAILABLE) != 0) {
-        int have1 = InventoryManager.getAccessibleCount(itemId1);
-        int have2 = InventoryManager.getAccessibleCount(itemId2);
-        int available = (itemId1 == itemId2) ? (have1 / 2) : Math.min(have1, have2);
-        quantity = Math.min(count, available);
-      }
-
-      if (quantity == 0) {
-        // This should not happen
-        return DataTypes.FALSE_VALUE;
-      }
-
-      RuntimeLibrary.synthesize_pair(controller, quantity, itemId1, itemId2);
-
-      count -= quantity;
+      RuntimeLibrary.synthesize_pair(controller, 1, itemId1, itemId2);
     }
+
     return RuntimeLibrary.continueValue();
   }
 
