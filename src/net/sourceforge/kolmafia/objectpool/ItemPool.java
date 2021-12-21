@@ -3233,6 +3233,7 @@ public class ItemPool {
   public static final int DEEP_FRIED_KEY = 10568;
   public static final int DISCARDED_BIKE_LOCK_KEY = 10569;
   public static final int MANUAL_OF_LOCK_PICKING = 10571;
+  public static final int DROMEDARY_DRINKING_HELMENT = 10580;
   public static final int SPINMASTER = 10582;
   public static final int FLIMSY_HARDWOOD_SCRAPS = 10583;
   public static final int DREADSYLVANIAN_HEMLOCK = 10589;
@@ -3306,6 +3307,9 @@ public class ItemPool {
   public static final int HOMEBODYL = 10828;
   public static final int EXTROVERMECTIN = 10829;
   public static final int BREATHITIN = 10830;
+  public static final int GOOIFIED_ANIMAL_MATTER = 10844;
+  public static final int GOOIFIED_VEGETABLE_MATTER = 10845;
+  public static final int GOOIFIED_MINERAL_MATTER = 10846;
 
   public static final AdventureResult get(String itemName, int count) {
     int itemId = ItemDatabase.getItemId(itemName, 1, false);

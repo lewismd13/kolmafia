@@ -191,6 +191,7 @@ user	armoryUnlocked	false
 user	autoAbortThreshold	-0.05
 user	autoAntidote	0
 user	autoBuyPriceLimit	20000
+user	autoForbidIgnoringStores	true
 user	autoCraft	true
 user	autoQuest	true
 user	autoEntangle	false
@@ -607,6 +608,7 @@ user	flickeringPixel6	false
 user	flickeringPixel7	false
 user	flickeringPixel8	false
 user	flyeredML	0
+user	forbiddenStores
 user	fossilB	0
 user	fossilD	0
 user	fossilN	0
@@ -1212,6 +1214,7 @@ user	SHAWARMAInitiativeUnlocked	false
 user	shenInitiationDay	0
 user	shenQuestItem
 user	shockingLickCharges	0
+user	showForbiddenStores	false
 user	showGainsPerUnit	false
 user	showIgnoringStorePrices	false
 user	showNoSummonOnly	false
@@ -1555,6 +1558,7 @@ user	_corruptedStardustUsed	false
 user	_cosmicSixPackConjured	false
 user	_crappyCameraUsed	false
 user	_creepyVoodooDollUsed	false
+user	_crimbo21ColdResistance	0
 user	_crimboTree	false
 user	_cursedKegUsed	false
 user	_cursedMicrowaveUsed	false

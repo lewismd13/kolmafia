@@ -1,5 +1,8 @@
 package net.sourceforge.kolmafia.textui;
 
+import static net.sourceforge.kolmafia.textui.parsetree.AggregateType.badAggregateType;
+import static net.sourceforge.kolmafia.textui.parsetree.VariableReference.badVariableReference;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +15,6 @@ import java.util.*;
 import net.java.dev.spellcast.utilities.DataUtilities;
 import net.sourceforge.kolmafia.KoLConstants;
 import net.sourceforge.kolmafia.KoLmafiaCLI;
-import net.sourceforge.kolmafia.RequestLogger;
 import net.sourceforge.kolmafia.StaticEntity;
 import net.sourceforge.kolmafia.objectpool.IntegerPool;
 import net.sourceforge.kolmafia.persistence.EffectDatabase;
@@ -37,6 +39,7 @@ import net.sourceforge.kolmafia.textui.parsetree.Evaluable;
 import net.sourceforge.kolmafia.textui.parsetree.ForEachLoop;
 import net.sourceforge.kolmafia.textui.parsetree.ForLoop;
 import net.sourceforge.kolmafia.textui.parsetree.Function;
+import net.sourceforge.kolmafia.textui.parsetree.Function.BadFunction;
 import net.sourceforge.kolmafia.textui.parsetree.Function.MatchType;
 import net.sourceforge.kolmafia.textui.parsetree.FunctionCall;
 import net.sourceforge.kolmafia.textui.parsetree.FunctionInvocation;
@@ -53,9 +56,11 @@ import net.sourceforge.kolmafia.textui.parsetree.Operator;
 import net.sourceforge.kolmafia.textui.parsetree.ParseTreeNode.TypedNode;
 import net.sourceforge.kolmafia.textui.parsetree.PluralValue;
 import net.sourceforge.kolmafia.textui.parsetree.RecordType;
+import net.sourceforge.kolmafia.textui.parsetree.RecordType.BadRecordType;
 import net.sourceforge.kolmafia.textui.parsetree.RepeatUntilLoop;
 import net.sourceforge.kolmafia.textui.parsetree.Scope;
 import net.sourceforge.kolmafia.textui.parsetree.ScriptExit;
+import net.sourceforge.kolmafia.textui.parsetree.ScriptState.BadScriptState;
 import net.sourceforge.kolmafia.textui.parsetree.SortBy;
 import net.sourceforge.kolmafia.textui.parsetree.StaticScope;
 import net.sourceforge.kolmafia.textui.parsetree.Switch;
@@ -63,12 +68,14 @@ import net.sourceforge.kolmafia.textui.parsetree.SwitchScope;
 import net.sourceforge.kolmafia.textui.parsetree.TernaryExpression;
 import net.sourceforge.kolmafia.textui.parsetree.Try;
 import net.sourceforge.kolmafia.textui.parsetree.Type;
+import net.sourceforge.kolmafia.textui.parsetree.Type.BadType;
 import net.sourceforge.kolmafia.textui.parsetree.TypeDef;
 import net.sourceforge.kolmafia.textui.parsetree.UserDefinedFunction;
 import net.sourceforge.kolmafia.textui.parsetree.Value;
 import net.sourceforge.kolmafia.textui.parsetree.Value.Constant;
 import net.sourceforge.kolmafia.textui.parsetree.VarArgType;
 import net.sourceforge.kolmafia.textui.parsetree.Variable;
+import net.sourceforge.kolmafia.textui.parsetree.Variable.BadVariable;
 import net.sourceforge.kolmafia.textui.parsetree.VariableList;
 import net.sourceforge.kolmafia.textui.parsetree.VariableReference;
 import net.sourceforge.kolmafia.textui.parsetree.WhileLoop;
@@ -162,7 +169,7 @@ public class Parser {
       // If any part of the initialization fails,
       // then throw an exception.
 
-      throw this.parseException(this.fileName + " could not be accessed");
+      this.error(this.fileName + " could not be accessed");
     } finally {
       try {
         this.istream.close();
@@ -339,10 +346,14 @@ public class Parser {
         if (s.length() > 0) s.append("; ");
         s.append(f.getPath());
       }
-      throw this.parseException(location, "too many matches for " + fileName + ": " + s);
+      this.error(location, "too many matches for " + fileName + ": " + s);
+
+      return scope;
     }
     if (matches.size() == 0) {
-      throw this.parseException(location, fileName + " could not be found");
+      this.error(location, fileName + " could not be found");
+
+      return scope;
     }
 
     File scriptFile = matches.get(0);
@@ -355,6 +366,10 @@ public class Parser {
 
     Parser parser = new Parser(scriptFile, null, this.imports);
     Scope result = parser.parseFile(scope);
+
+    for (AshDiagnostic diagnostic : parser.diagnostics) {
+      this.diagnostics.add(diagnostic);
+    }
 
     if (parser.mainMethod
         != null) { // Make imported script's main() available under a different name
@@ -382,17 +397,17 @@ public class Parser {
       if (c != null) {
         result.addCommand(c, this);
       } else {
-        throw this.parseException(this.currentToken(), "command or declaration required");
+        this.error(this.currentToken(), "command or declaration required");
       }
     } else if (this.parseVariables(t, result)) {
       if (this.currentToken().equals(";")) {
         this.readToken(); // read ;
       } else {
-        throw this.parseException(";", this.currentToken());
+        this.unexpectedTokenError(";", this.currentToken());
       }
     } else {
       // Found a type but no function or variable to tie it to
-      throw this.parseException(
+      this.error(
           Parser.makeLocation(t.getLocation(), this.currentToken()),
           "Type given but not used to declare anything");
     }
@@ -407,13 +422,13 @@ public class Parser {
             : startScope;
 
     Token firstToken = this.currentToken();
-    this.parseScope(result, null, result.getParentScope(), false, false);
+    this.parseScope(result, null, result.getParentScope(), true, false, false);
 
     Location scriptLocation = this.makeLocation(firstToken, this.peekPreviousToken());
     result.setScopeLocation(scriptLocation);
 
     if (this.currentLine.nextLine != null) {
-      throw this.parseException("Script parsing error");
+      this.error("Script parsing error", "thought we reached the end of the file");
     }
 
     return result;
@@ -426,13 +441,14 @@ public class Parser {
       final boolean allowBreak,
       final boolean allowContinue) {
     Scope result = new Scope(variables, parentScope);
-    return this.parseScope(result, expectedType, parentScope, allowBreak, allowContinue);
+    return this.parseScope(result, expectedType, parentScope, false, allowBreak, allowContinue);
   }
 
   private Scope parseScope(
       Scope result,
       final Type expectedType,
       final BasicScope parentScope,
+      final boolean wholeFile,
       final boolean allowBreak,
       final boolean allowContinue) {
     Directive importDirective;
@@ -446,12 +462,27 @@ public class Parser {
           this.importFile(importDirective.value, result, this.makeLocation(importDirective.range));
     }
 
-    while (true) {
+    Position previousPosition = null;
+    while (!this.atEndOfFile()) {
+      // Infinite loop prevention
+      if (!this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
+        if (!wholeFile) {
+          break;
+        }
+
+        // If we're at the top scope of a file, and we reached a node we
+        // couldn't parse, just read the current token and continue
+        this.error(this.currentToken(), "Empty or unknown node");
+
+        this.readToken();
+        continue;
+      }
+
       if (this.parseTypedef(result)) {
         if (this.currentToken().equals(";")) {
           this.readToken(); // read ;
         } else {
-          throw this.parseException(";", this.currentToken());
+          this.unexpectedTokenError(";", this.currentToken());
         }
 
         continue;
@@ -465,11 +496,9 @@ public class Parser {
         Command c = this.parseCommand(expectedType, result, false, allowBreak, allowContinue);
         if (c != null) {
           result.addCommand(c, this);
-          continue;
         }
 
-        // No type and no command -> done.
-        break;
+        continue;
       }
 
       // If this is a new record definition, enter it
@@ -484,8 +513,7 @@ public class Parser {
           if (parentScope.getParentScope() == null) {
             this.mainMethod = f;
           } else {
-            throw this.parseException(
-                f.getDefinitionLocation(), "main method must appear at top level");
+            this.error(f.getDefinitionLocation(), "main method must appear at top level");
           }
         }
 
@@ -496,7 +524,7 @@ public class Parser {
         if (this.currentToken().equals(";")) {
           this.readToken(); // read ;
         } else {
-          throw this.parseException(";", this.currentToken());
+          this.unexpectedTokenError(";", this.currentToken());
         }
 
         continue;
@@ -506,13 +534,17 @@ public class Parser {
         if (t.getBaseType() instanceof AggregateType) {
           result.addCommand(this.parseAggregateLiteral(result, (AggregateType) t), this);
         } else {
-          throw this.parseException(
-              Parser.makeLocation(t.getLocation(), this.currentToken()),
-              "Aggregate type required to make an aggregate literal");
+          if (!t.isBad()) {
+            this.error(
+                Parser.makeLocation(t.getLocation(), this.currentToken()),
+                "Aggregate type required to make an aggregate literal");
+          }
+
+          this.parseAggregateLiteral(result, badAggregateType());
         }
       } else {
         // Found a type but no function or variable to tie it to
-        throw this.parseException(
+        this.error(
             Parser.makeLocation(t.getLocation(), this.currentToken()),
             "Type given but not used to declare anything");
       }
@@ -531,7 +563,9 @@ public class Parser {
     this.readToken(); // read record
 
     if (this.currentToken().equals(";")) {
-      throw this.parseException(this.currentToken(), "Record name expected");
+      this.error(this.currentToken(), "Record name expected");
+
+      return new BadRecordType(null, this.makeLocation(recordStartToken));
     }
 
     // Allow anonymous records
@@ -542,13 +576,18 @@ public class Parser {
       recordName = this.currentToken().content;
 
       if (!this.parseIdentifier(recordName)) {
-        throw this.parseException(this.currentToken(), "Invalid record name '" + recordName + "'");
+        this.error(this.currentToken(), "Invalid record name '" + recordName + "'");
+
+        recordName = null;
       } else if (Parser.isReservedWord(recordName)) {
-        throw this.parseException(
+        this.error(
             this.currentToken(), "Reserved word '" + recordName + "' cannot be a record name");
+
+        recordName = null;
       } else if (parentScope.findType(recordName) != null) {
-        throw this.parseException(
-            this.currentToken(), "Record name '" + recordName + "' is already defined");
+        this.error(this.currentToken(), "Record name '" + recordName + "' is already defined");
+
+        recordName = null;
       }
 
       this.readToken(); // read name
@@ -557,21 +596,26 @@ public class Parser {
     if (this.currentToken().equals("{")) {
       this.readToken(); // read {
     } else {
-      throw this.parseException("{", this.currentToken());
+      this.unexpectedTokenError("{", this.currentToken());
+
+      return new BadRecordType(
+          recordName, this.makeLocation(recordStartToken, this.peekPreviousToken()));
     }
 
     // Loop collecting fields
     List<Type> fieldTypes = new ArrayList<Type>();
     List<String> fieldNames = new ArrayList<String>();
 
-    while (true) {
+    Position previousPosition = null;
+    while (this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
       if (this.atEndOfFile()) {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals("}")) {
         if (fieldTypes.isEmpty()) {
-          throw this.parseException(this.currentToken(), "Record field(s) expected");
+          this.error(this.currentToken(), "Record field(s) expected");
         }
 
         this.readToken(); // read }
@@ -581,33 +625,40 @@ public class Parser {
       // Get the field type
       Type fieldType = this.parseType(parentScope, true);
       if (fieldType == null) {
-        throw this.parseException(this.currentToken(), "Type name expected");
+        this.error(this.currentToken(), "Type name expected");
       } else if (fieldType.getBaseType().equals(DataTypes.VOID_TYPE)) {
-        throw this.parseException(fieldType.getLocation(), "Non-void field type expected");
+        this.error(fieldType.getLocation(), "Non-void field type expected");
       }
 
       // Get the field name
       Token fieldName = this.currentToken();
       if (fieldName.equals(";")) {
-        throw this.parseException(fieldName, "Field name expected");
+        this.error(fieldName, "Field name expected");
+        // don't read
       } else if (!this.parseIdentifier(fieldName.content)) {
-        throw this.parseException(fieldName, "Invalid field name '" + fieldName + "'");
+        this.error(fieldName, "Invalid field name '" + fieldName + "'");
+        // don't read
       } else if (Parser.isReservedWord(fieldName.content)) {
-        throw this.parseException(
-            fieldName, "Reserved word '" + fieldName + "' cannot be used as a field name");
+        this.error(fieldName, "Reserved word '" + fieldName + "' cannot be used as a field name");
+
+        this.readToken(); // read name
       } else if (fieldNames.contains(fieldName.content)) {
-        throw this.parseException(fieldName, "Field name '" + fieldName + "' is already defined");
+        this.error(fieldName, "Field name '" + fieldName + "' is already defined");
+
+        this.readToken(); // read name
       } else {
         this.readToken(); // read name
       }
 
-      fieldTypes.add(fieldType);
-      fieldNames.add(fieldName.content.toLowerCase());
+      if (fieldType != null) {
+        fieldTypes.add(fieldType);
+        fieldNames.add(fieldName.content.toLowerCase());
+      }
 
       if (this.currentToken().equals(";")) {
         this.readToken(); // read ;
       } else {
-        throw this.parseException(";", this.currentToken());
+        this.unexpectedTokenError(";", this.currentToken());
       }
     }
 
@@ -649,7 +700,7 @@ public class Parser {
     Token functionName = this.currentToken();
 
     if (Parser.isReservedWord(functionName.content)) {
-      throw this.parseException(
+      this.error(
           functionName, "Reserved word '" + functionName + "' cannot be used as a function name");
     }
 
@@ -660,7 +711,13 @@ public class Parser {
     List<VariableReference> variableReferences = new ArrayList<>();
     boolean vararg = false;
 
-    while (true) {
+    Position previousPosition = null;
+    while (this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
+      if (this.atEndOfFile()) {
+        this.unexpectedTokenError(")", this.currentToken());
+        break;
+      }
+
       if (this.currentToken().equals(")")) {
         this.readToken(); // read )
         break;
@@ -668,7 +725,8 @@ public class Parser {
 
       Type paramType = this.parseType(parentScope, false);
       if (paramType == null) {
-        throw this.parseException(")", this.currentToken());
+        this.unexpectedTokenError(")", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals("...")) {
@@ -682,29 +740,26 @@ public class Parser {
 
       Variable param = this.parseVariable(paramType, null);
       if (param == null) {
-        throw this.parseException("identifier", this.currentToken());
+        this.unexpectedTokenError("identifier", this.currentToken());
+        continue;
       }
 
       if (vararg) {
         if (paramType instanceof VarArgType) {
           // We can only have a single vararg parameter
-          throw this.parseException(
-              paramType.getLocation(), "Only one vararg parameter is allowed");
+          this.error(paramType.getLocation(), "Only one vararg parameter is allowed");
         } else {
           // The single vararg parameter must be the last one
-          throw this.parseException(
-              paramType.getLocation(), "The vararg parameter must be the last one");
+          this.error(paramType.getLocation(), "The vararg parameter must be the last one");
         }
       } else if (!paramList.add(param)) {
-        throw this.parseException(
-            param.getLocation(), "Parameter " + param.getName() + " is already defined");
+        this.error(param.getLocation(), "Parameter " + param.getName() + " is already defined");
       } else {
         variableReferences.add(new VariableReference(param.getLocation(), param));
       }
 
       if (this.currentToken().equals("=")) {
-        throw this.parseException(
-            this.currentToken(), "Cannot initialize parameter " + param.getName());
+        this.error(this.currentToken(), "Cannot initialize parameter " + param.getName());
       }
 
       if (paramType instanceof VarArgType) {
@@ -716,7 +771,7 @@ public class Parser {
         if (this.currentToken().equals(",")) {
           this.readToken(); // read comma
         } else {
-          throw this.parseException(",", this.currentToken());
+          this.unexpectedTokenError(",", this.currentToken());
         }
       }
     }
@@ -731,20 +786,20 @@ public class Parser {
             functionName.content, functionType, variableReferences, functionLocation);
 
     if (f.overridesLibraryFunction()) {
-      throw this.overridesLibraryFunctionException(f);
+      this.overridesLibraryFunctionError(f);
     }
 
     UserDefinedFunction existing = parentScope.findFunction(f);
 
     if (existing != null && existing.getScope() != null) {
-      throw this.multiplyDefinedFunctionException(f);
+      this.multiplyDefinedFunctionError(f);
     }
 
     if (vararg) {
       Function clash = parentScope.findVarargClash(f);
 
       if (clash != null) {
-        throw this.varargClashException(f, clash);
+        this.varargClashError(f, clash);
       }
     }
 
@@ -763,7 +818,7 @@ public class Parser {
 
     result.setScope(scope);
     if (!scope.assertBarrier() && !functionType.equals(DataTypes.TYPE_VOID)) {
-      throw this.parseException(functionLocation, "Missing return value");
+      this.error(functionLocation, "Missing return value");
     }
 
     return result;
@@ -814,10 +869,13 @@ public class Parser {
     Variable result;
 
     if (Parser.isReservedWord(variableName.content)) {
-      throw this.parseException(
-          variableName, "Reserved word '" + variableName + "' cannot be a variable name");
+      this.error(variableName, "Reserved word '" + variableName + "' cannot be a variable name");
+
+      result = new BadVariable(variableName.content, t, this.makeLocation(variableName));
     } else if (scope != null && scope.findVariable(variableName.content) != null) {
-      throw this.parseException(variableName, "Variable " + variableName + " is already defined");
+      this.error(variableName, "Variable " + variableName + " is already defined");
+
+      result = new BadVariable(variableName.content, t, this.makeLocation(variableName));
     } else {
       result = new Variable(variableName.content, t, this.makeLocation(variableName));
     }
@@ -840,11 +898,15 @@ public class Parser {
       if (ltype instanceof AggregateType) {
         result = this.parseAggregateLiteral(scope, (AggregateType) ltype);
       } else {
-        Location errorLocation = this.makeLocation(this.currentToken());
+        if (!ltype.isBad()) {
+          Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(
-            errorLocation,
-            "Cannot initialize " + lhs + " of type " + t + " with an aggregate literal");
+          this.error(
+              errorLocation,
+              "Cannot initialize " + lhs + " of type " + t + " with an aggregate literal");
+        }
+
+        result = this.parseAggregateLiteral(scope, badAggregateType());
       }
     } else {
       result = this.parseExpression(scope);
@@ -852,22 +914,27 @@ public class Parser {
       if (result != null) {
         result = this.autoCoerceValue(t, result, scope);
         if (!Operator.validCoercion(ltype, result.getType(), "assign")) {
-          throw this.parseException(
+          this.error(
               result.getLocation(),
               "Cannot store " + result.getType() + " in " + lhs + " of type " + ltype);
         }
       } else {
-        throw this.parseException(this.currentToken(), "Expression expected");
+        this.error(this.currentToken(), "Expression expected");
       }
     }
 
     return result;
   }
 
-  private Evaluable autoCoerceValue(Type ltype, final Evaluable rhs, final BasicScope scope) {
+  private Evaluable autoCoerceValue(final Type ltype, final Evaluable rhs, final BasicScope scope) {
     // DataTypes.TYPE_ANY has no name
     if (ltype == null || ltype.getName() == null) {
       return rhs;
+    }
+
+    // Error propagation
+    if (ltype.isBad() || rhs.getType().isBad()) {
+      return Value.locate(rhs.getLocation(), Value.BAD_VALUE);
     }
 
     // If the types are the same no coercion needed
@@ -946,28 +1013,34 @@ public class Parser {
 
     Type t = this.parseType(parentScope, true);
     if (t == null) {
-      throw this.parseException(typedefToken, this.currentToken(), "Missing data type for typedef");
+      this.error(typedefToken, this.currentToken(), "Missing data type for typedef");
+
+      t = new BadType(null, null);
     }
 
     Token typeName = this.currentToken();
 
     if (typeName.equals(";")) {
-      throw this.parseException(typeName, "Type name expected");
+      this.error(typeName, "Type name expected");
+      // don't read
     } else if (!this.parseIdentifier(typeName.content)) {
-      throw this.parseException(typeName, "Invalid type name '" + typeName + "'");
+      this.error(typeName, "Invalid type name '" + typeName + "'");
+      // don't read
     } else if (Parser.isReservedWord(typeName.content)) {
-      throw this.parseException(typeName, "Reserved word '" + typeName + "' cannot be a type name");
+      this.error(typeName, "Reserved word '" + typeName + "' cannot be a type name");
+
+      this.readToken(); // read name
     } else {
       this.readToken(); // read name
 
       Type existingType = parentScope.findType(typeName.content);
       if (existingType != null) {
-        if (existingType.getBaseType().equals(t)) {
+        if (existingType.getBaseType().equals(t) || existingType.isBad()) {
           // It is OK to redefine a typedef with an equivalent type
           return true;
         }
 
-        throw this.parseException(typeName, "Type name '" + typeName + "' is already defined");
+        this.error(typeName, "Type name '" + typeName + "' is already defined");
       } else {
         // Add the type to the type table
         TypeDef type =
@@ -992,7 +1065,9 @@ public class Parser {
       if (allowBreak) {
         result = new LoopBreak(this.makeLocation(this.currentToken()));
       } else {
-        throw this.parseException(this.currentToken(), "Encountered 'break' outside of loop");
+        this.error(this.currentToken(), "Encountered 'break' outside of loop");
+
+        result = new BadScriptState(this.makeLocation(this.currentToken()));
       }
 
       this.readToken(); // break
@@ -1000,7 +1075,9 @@ public class Parser {
       if (allowContinue) {
         result = new LoopContinue(this.makeLocation(this.currentToken()));
       } else {
-        throw this.parseException(this.currentToken(), "Encountered 'continue' outside of loop");
+        this.error(this.currentToken(), "Encountered 'continue' outside of loop");
+
+        result = new BadScriptState(this.makeLocation(this.currentToken()));
       }
 
       this.readToken(); // continue
@@ -1056,7 +1133,7 @@ public class Parser {
     if (this.currentToken().equals(";")) {
       this.readToken(); // ;
     } else {
-      throw this.parseException(";", this.currentToken());
+      this.unexpectedTokenError(";", this.currentToken());
     }
 
     return result;
@@ -1071,8 +1148,7 @@ public class Parser {
 
     if ((valType = this.parseRecord(scope)) != null) {
       if (!records) {
-        throw this.parseException(
-            valType.getLocation(), "Existing type expected for function parameter");
+        this.error(valType.getLocation(), "Existing type expected for function parameter");
       }
     } else if ((valType = scope.findType(this.currentToken().content)) != null) {
       valType = valType.reference(this.makeLocation(this.currentToken()));
@@ -1111,9 +1187,11 @@ public class Parser {
     // Assume it is a map.
     boolean isArray = false;
 
-    while (true) {
+    Position previousPosition = null;
+    while (this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
       if (this.atEndOfFile()) {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals("}")) {
@@ -1129,10 +1207,10 @@ public class Parser {
       Type dataType = data.getBaseType();
 
       if (this.currentToken().equals("{")) {
-        if (!isArray && !arrayAllowed) {
+        if (!isArray && !arrayAllowed && !aggr.isBad()) {
           // We know this is a map, but they placed
           // an aggregate literal as a key
-          throw this.parseException(
+          this.error(
               this.currentToken(),
               "Expected a key of type " + index.toString() + ", found an aggregate");
         }
@@ -1140,11 +1218,15 @@ public class Parser {
         if (dataType instanceof AggregateType) {
           lhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
         } else {
-          Location errorLocation = this.makeLocation(this.currentToken());
+          if (!aggr.isBad()) {
+            Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(
-              errorLocation,
-              "Expected an element of type " + dataType.toString() + ", found an aggregate");
+            this.error(
+                errorLocation,
+                "Expected an element of type " + dataType.toString() + ", found an aggregate");
+          }
+
+          lhs = this.parseAggregateLiteral(scope, badAggregateType());
         }
       } else {
         lhs = this.parseExpression(scope);
@@ -1153,8 +1235,10 @@ public class Parser {
       if (lhs == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(
+        this.error(
             errorLocation, "Script parsing error; couldn't figure out value of aggregate key");
+
+        lhs = Value.locate(errorLocation, Value.BAD_VALUE);
       }
 
       Token delim = this.currentToken();
@@ -1175,7 +1259,7 @@ public class Parser {
           // The value must have the correct data type
           lhs = this.autoCoerceValue(data, lhs, scope);
           if (!Operator.validCoercion(dataType, lhs.getType(), "assign")) {
-            throw this.parseException(
+            this.error(
                 lhs.getLocation(),
                 "Invalid array literal; cannot assign type "
                     + dataType.toString()
@@ -1185,14 +1269,14 @@ public class Parser {
 
           values.add(lhs);
         } else {
-          throw this.parseException(":", delim);
+          this.unexpectedTokenError(":", delim);
         }
 
         // Move on to the next value
         if (delim.equals(",")) {
           this.readToken(); // read ,
         } else if (!delim.equals("}")) {
-          throw this.parseException("}", delim);
+          this.unexpectedTokenError("}", delim);
         }
 
         continue;
@@ -1210,11 +1294,10 @@ public class Parser {
         if (data.equals(DataTypes.INT_TYPE)) {
           // If so, this is an int[int] aggregate. They could have done something like
           // {0, 1, 2, 3:3, 4:4, 5:5}
-          throw this.parseException(
-              lhs.getLocation(), "Cannot include keys when making an array literal");
+          this.error(lhs.getLocation(), "Cannot include keys when making an array literal");
         } else {
           // If not, we can't tell why there's a colon here.
-          throw this.parseException(", or }", delim);
+          this.unexpectedTokenError(", or }", delim);
         }
       }
 
@@ -1224,11 +1307,15 @@ public class Parser {
         if (dataType instanceof AggregateType) {
           rhs = this.parseAggregateLiteral(scope, (AggregateType) dataType);
         } else {
-          Location errorLocation = this.makeLocation(this.currentToken());
+          if (!aggr.isBad()) {
+            Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(
-              errorLocation,
-              "Expected a value of type " + dataType.toString() + ", found an aggregate");
+            this.error(
+                errorLocation,
+                "Expected a value of type " + dataType.toString() + ", found an aggregate");
+          }
+
+          rhs = this.parseAggregateLiteral(scope, badAggregateType());
         }
       } else {
         rhs = this.parseExpression(scope);
@@ -1237,8 +1324,10 @@ public class Parser {
       if (rhs == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(
+        this.error(
             errorLocation, "Script parsing error; couldn't figure out value of aggregate value");
+
+        rhs = Value.locate(errorLocation, Value.BAD_VALUE);
       }
 
       // Check that each type is valid via validCoercion
@@ -1246,7 +1335,7 @@ public class Parser {
       rhs = this.autoCoerceValue(data, rhs, scope);
 
       if (!Operator.validCoercion(index, lhs.getType(), "assign")) {
-        throw this.parseException(
+        this.error(
             lhs.getLocation(),
             "Invalid map literal; cannot assign type "
                 + index.toString()
@@ -1255,7 +1344,7 @@ public class Parser {
       }
 
       if (!Operator.validCoercion(data, rhs.getType(), "assign")) {
-        throw this.parseException(
+        this.error(
             rhs.getLocation(),
             "Invalid map literal; cannot assign type "
                 + dataType.toString()
@@ -1270,7 +1359,7 @@ public class Parser {
       if (this.currentToken().equals(",")) {
         this.readToken(); // read ,
       } else if (!this.currentToken().equals("}")) {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
       }
     }
 
@@ -1280,7 +1369,7 @@ public class Parser {
     if (isArray) {
       int size = aggr.getSize();
       if (size > 0 && size < values.size()) {
-        throw this.parseException(
+        this.error(
             aggregateLiteralLocation,
             "Array has " + size + " elements but " + values.size() + " initializers.");
       }
@@ -1303,7 +1392,7 @@ public class Parser {
 
     if (indexToken.equals("]")) {
       if (!separatorToken.equals("[")) {
-        throw this.parseException(indexToken, "Missing index token");
+        this.error(indexToken, "Missing index token");
       }
     } else if (this.readIntegerToken(indexToken.content)) {
       size = StringUtilities.parseInt(indexToken.content);
@@ -1315,16 +1404,22 @@ public class Parser {
         indexType = indexType.reference(this.makeLocation(indexToken));
 
         if (!indexType.isPrimitive()) {
-          throw this.parseException(
-              indexToken, "Index type '" + indexToken + "' is not a primitive type");
+          this.error(indexToken, "Index type '" + indexToken + "' is not a primitive type");
+
+          indexType = new BadType(indexToken.content, this.makeLocation(indexToken));
         }
       } else {
-        throw this.parseException(indexToken, "Invalid type name '" + indexToken + "'");
+        this.error(indexToken, "Invalid type name '" + indexToken + "'");
+
+        indexType = new BadType(indexToken.content, this.makeLocation(indexToken));
       }
 
       this.readToken(); // type name
     } else {
-      throw this.parseException(indexToken, "Missing index token");
+      this.error(indexToken, "Missing index token");
+
+      Type type = new AggregateType(dataType, new BadType(null, null));
+      return type.reference(Parser.makeLocation(dataType.getLocation(), this.peekPreviousToken()));
     }
 
     if (this.currentToken().equals(",")
@@ -1337,7 +1432,7 @@ public class Parser {
     } else if (this.currentToken().equals("]")) {
       this.readToken(); // ]
     } else {
-      throw this.parseException(", or ]", this.currentToken());
+      this.unexpectedTokenError(", or ]", this.currentToken());
     }
 
     Type type =
@@ -1396,19 +1491,19 @@ public class Parser {
     this.readToken(); // return
 
     if (expectedType == null) {
-      throw this.parseException(returnStartToken, "Cannot return when outside of a function");
+      this.error(returnStartToken, "Cannot return when outside of a function");
     }
 
     if (this.currentToken().equals(";")) {
       if (expectedType != null && !expectedType.equals(DataTypes.TYPE_VOID)) {
-        throw this.parseException(returnStartToken, "Return needs " + expectedType + " value");
+        this.error(returnStartToken, "Return needs " + expectedType + " value");
       }
 
       return new FunctionReturn(this.makeLocation(returnStartToken), null, DataTypes.VOID_TYPE);
     }
 
     if (expectedType != null && expectedType.equals(DataTypes.TYPE_VOID)) {
-      throw this.parseException(this.currentToken(), "Cannot return a value from a void function");
+      this.error(this.currentToken(), "Cannot return a value from a void function");
     }
 
     Evaluable value = this.parseExpression(parentScope);
@@ -1418,11 +1513,15 @@ public class Parser {
     } else {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      if (expectedType != null && !expectedType.equals(DataTypes.TYPE_VOID)) {
+        this.error(errorLocation, "Expression expected");
+      }
+
+      value = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     if (expectedType != null && !Operator.validCoercion(expectedType, value.getType(), "return")) {
-      throw this.parseException(
+      this.error(
           value.getLocation(),
           "Cannot return " + value.getType() + " value from " + expectedType + " function");
     }
@@ -1448,7 +1547,7 @@ public class Parser {
       if (this.currentToken().equals(";")) {
         this.readToken(); // ;
       } else {
-        throw this.parseException(";", this.currentToken());
+        this.unexpectedTokenError(";", this.currentToken());
       }
     }
 
@@ -1494,7 +1593,7 @@ public class Parser {
     if (this.currentToken().equals("}")) {
       this.readToken(); // read }
     } else {
-      throw this.parseException("}", this.currentToken());
+      this.unexpectedTokenError("}", this.currentToken());
     }
 
     Location blockLocation = this.makeLocation(blockStartToken, this.peekPreviousToken());
@@ -1520,7 +1619,7 @@ public class Parser {
     if (this.currentToken().equals("(")) {
       this.readToken(); // (
     } else {
-      throw this.parseException("(", this.currentToken());
+      this.unexpectedTokenError("(", this.currentToken());
     }
 
     Evaluable condition = this.parseExpression(parentScope);
@@ -1528,19 +1627,23 @@ public class Parser {
     if (condition == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
-      throw this.parseException(")", this.currentToken());
+      this.unexpectedTokenError(")", this.currentToken());
     }
 
-    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE) && !condition.getType().isBad()) {
       Location errorLocation = condition.getLocation();
 
-      throw this.parseException(errorLocation, "\"if\" requires a boolean conditional expression");
+      this.error(errorLocation, "\"if\" requires a boolean conditional expression");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     If result = null;
@@ -1569,7 +1672,7 @@ public class Parser {
         conditionalStartToken = this.currentToken();
 
         if (finalElse) {
-          throw this.parseException(this.currentToken(), "Else without if");
+          this.error(this.currentToken(), "Else without if");
         }
 
         this.readToken(); // else
@@ -1579,7 +1682,7 @@ public class Parser {
           if (this.currentToken().equals("(")) {
             this.readToken(); // (
           } else {
-            throw this.parseException("(", this.currentToken());
+            this.unexpectedTokenError("(", this.currentToken());
           }
 
           condition = this.parseExpression(parentScope);
@@ -1587,20 +1690,23 @@ public class Parser {
           if (condition == null) {
             Location errorLocation = this.makeLocation(this.currentToken());
 
-            throw this.parseException(errorLocation, "Expression expected");
+            this.error(errorLocation, "Expression expected");
+
+            condition = Value.locate(errorLocation, Value.BAD_VALUE);
           }
 
           if (this.currentToken().equals(")")) {
             this.readToken(); // )
           } else {
-            throw this.parseException(")", this.currentToken());
+            this.unexpectedTokenError(")", this.currentToken());
           }
 
-          if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+          if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE) && !condition.getType().isBad()) {
             Location errorLocation = condition.getLocation();
 
-            throw this.parseException(
-                errorLocation, "\"if\" requires a boolean conditional expression");
+            this.error(errorLocation, "\"if\" requires a boolean conditional expression");
+
+            condition = Value.locate(errorLocation, Value.BAD_VALUE);
           }
         } else {
           // else without condition
@@ -1636,7 +1742,8 @@ public class Parser {
 
     while (true) {
       if (this.atEndOfFile()) {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals("}")) {
@@ -1682,7 +1789,7 @@ public class Parser {
     if (this.currentToken().equals("(")) {
       this.readToken(); // (
     } else {
-      throw this.parseException("(", this.currentToken());
+      this.unexpectedTokenError("(", this.currentToken());
     }
 
     Evaluable condition = this.parseExpression(parentScope);
@@ -1690,20 +1797,23 @@ public class Parser {
     if (condition == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
-      throw this.parseException(")", this.currentToken());
+      this.unexpectedTokenError(")", this.currentToken());
     }
 
-    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE) && !condition.getType().isBad()) {
       Location errorLocation = condition.getLocation();
 
-      throw this.parseException(
-          errorLocation, "\"while\" requires a boolean conditional expression");
+      this.error(errorLocation, "\"while\" requires a boolean conditional expression");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     Scope scope = this.parseLoopScope(functionType, null, parentScope);
@@ -1726,13 +1836,13 @@ public class Parser {
     if (this.currentToken().equalsIgnoreCase("until")) {
       this.readToken(); // until
     } else {
-      throw this.parseException("until", this.currentToken());
+      this.unexpectedTokenError("until", this.currentToken());
     }
 
     if (this.currentToken().equals("(")) {
       this.readToken(); // (
     } else {
-      throw this.parseException("(", this.currentToken());
+      this.unexpectedTokenError("(", this.currentToken());
     }
 
     Evaluable condition = this.parseExpression(parentScope);
@@ -1740,20 +1850,23 @@ public class Parser {
     if (condition == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
-      throw this.parseException(")", this.currentToken());
+      this.unexpectedTokenError(")", this.currentToken());
     }
 
-    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE) && !condition.getType().isBad()) {
       Location errorLocation = condition.getLocation();
 
-      throw this.parseException(
-          errorLocation, "\"repeat\" requires a boolean conditional expression");
+      this.error(errorLocation, "\"repeat\" requires a boolean conditional expression");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     Location repeatLocation = this.makeLocation(repeatStartToken, this.peekPreviousToken());
@@ -1771,7 +1884,7 @@ public class Parser {
     this.readToken(); // switch
 
     if (!this.currentToken().equals("(") && !this.currentToken().equals("{")) {
-      throw this.parseException("( or {", this.currentToken());
+      this.unexpectedTokenError("( or {", this.currentToken());
     }
 
     Evaluable condition = Value.locate(this.makeZeroWidthLocation(), DataTypes.TRUE_VALUE);
@@ -1783,13 +1896,15 @@ public class Parser {
       if (condition == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "\"switch ()\" requires an expression");
+        this.error(errorLocation, "\"switch ()\" requires an expression");
+
+        condition = Value.locate(errorLocation, Value.BAD_VALUE);
       }
 
       if (this.currentToken().equals(")")) {
         this.readToken(); // )
       } else {
-        throw this.parseException(")", this.currentToken());
+        this.unexpectedTokenError(")", this.currentToken());
       }
     }
 
@@ -1800,7 +1915,7 @@ public class Parser {
     if (this.currentToken().equals("{")) {
       this.readToken(); // {
     } else {
-      throw this.parseException("{", this.currentToken());
+      this.unexpectedTokenError("{", this.currentToken());
     }
 
     List<Evaluable> tests = new ArrayList<>();
@@ -1823,23 +1938,26 @@ public class Parser {
         if (test == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(
-              errorLocation, "Case label needs to be followed by an expression");
+          this.error(errorLocation, "Case label needs to be followed by an expression");
+
+          test = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         if (this.currentToken().equals(":")) {
           this.readToken(); // :
         } else {
-          throw this.parseException(":", this.currentToken());
+          this.unexpectedTokenError(":", this.currentToken());
         }
 
-        if (!test.getType().equals(type)) {
-          throw this.parseException(
+        if (!test.getType().equals(type) && !type.isBad() && !test.getType().isBad()) {
+          this.error(
               test.getLocation(),
               "Switch conditional has type "
                   + type
                   + " but label expression has type "
                   + test.getType());
+
+          test = Value.locate(test.getLocation(), Value.BAD_VALUE);
         }
 
         if (currentInteger == null) {
@@ -1848,8 +1966,8 @@ public class Parser {
 
         if (test instanceof Constant && ((Constant) test).value.getClass() == Value.class) {
           if (labels.get(((Constant) test).value) != null) {
-            throw this.parseException(test.getLocation(), "Duplicate case label: " + test);
-          } else {
+            this.error(test.getLocation(), "Duplicate case label: " + test);
+          } else if (!test.evaluatesTo(Value.BAD_VALUE)) {
             labels.put(((Constant) test).value, currentInteger);
           }
         } else {
@@ -1871,14 +1989,13 @@ public class Parser {
         if (this.currentToken().equals(":")) {
           this.readToken(); // :
         } else {
-          throw this.parseException(":", this.currentToken());
+          this.unexpectedTokenError(":", this.currentToken());
         }
 
         if (defaultIndex == -1) {
           defaultIndex = currentIndex;
         } else {
-          throw this.parseException(
-              defaultToken, "Only one default label allowed in a switch statement");
+          this.error(defaultToken, "Only one default label allowed in a switch statement");
         }
 
         scope.resetBarrier();
@@ -1905,7 +2022,7 @@ public class Parser {
 
       if (!this.parseVariables(t, scope)) {
         // Found a type but no function or variable to tie it to
-        throw this.parseException(
+        this.error(
             Parser.makeLocation(t.getLocation(), this.currentToken()),
             "Type given but not used to declare anything");
       }
@@ -1913,7 +2030,7 @@ public class Parser {
       if (this.currentToken().equals(";")) {
         this.readToken(); // read ;
       } else {
-        throw this.parseException(";", this.currentToken());
+        this.unexpectedTokenError(";", this.currentToken());
       }
 
       currentIndex = scope.commandCount();
@@ -1923,7 +2040,7 @@ public class Parser {
     if (this.currentToken().equals("}")) {
       this.readToken(); // }
     } else {
-      throw this.parseException("}", this.currentToken());
+      this.unexpectedTokenError("}", this.currentToken());
     }
 
     Location switchScopeLocation =
@@ -1970,9 +2087,10 @@ public class Parser {
               functionType, null, body, false, allowBreak, allowContinue);
     } else {
       // this would not be an error if at least one catch was present
-      throw this.parseException(
+      this.error(
           this.makeLocation(tryStartToken, this.peekPreviousToken()),
           "\"try\" without \"finally\" is pointless");
+      finalClause = new Scope(body);
     }
 
     Location tryLocation = this.makeLocation(tryStartToken, this.peekPreviousToken());
@@ -2016,7 +2134,9 @@ public class Parser {
       } else {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "\"catch\" requires a block or an expression");
+        this.error(errorLocation, "\"catch\" requires a block or an expression");
+
+        body = Value.locate(errorLocation, Value.BAD_VALUE);
       }
     }
 
@@ -2037,12 +2157,12 @@ public class Parser {
     if (this.currentToken().equals("{")) {
       this.readToken(); // read {
 
-      this.parseScope(result, functionType, parentScope, false, false);
+      this.parseScope(result, functionType, parentScope, false, false, false);
 
       if (this.currentToken().equals("}")) {
         this.readToken(); // read }
       } else {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
       }
     } else { // body is a single call
       this.parseCommandOrDeclaration(result, functionType);
@@ -2081,13 +2201,17 @@ public class Parser {
       Location errorLocation =
           aggregate != null ? aggregate.getLocation() : this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Aggregate reference expected");
+      if (aggregate == null || !aggregate.getType().isBad()) {
+        this.error(errorLocation, "Aggregate reference expected");
+      }
+
+      aggregate = badVariableReference(errorLocation, badAggregateType());
     }
 
     if (this.currentToken().equalsIgnoreCase("by")) {
       this.readToken(); // by
     } else {
-      throw this.parseException("by", this.currentToken());
+      this.unexpectedTokenError("by", this.currentToken());
     }
 
     Token scopeStartToken = this.currentToken();
@@ -2107,7 +2231,9 @@ public class Parser {
     if (expr == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      expr = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     Location scopeLocation = this.makeLocation(scopeStartToken, this.peekPreviousToken());
@@ -2139,12 +2265,28 @@ public class Parser {
           || name.equalsIgnoreCase("in")
               && !"in".equalsIgnoreCase(this.nextToken())
               && !",".equals(this.nextToken())) {
-        throw this.parseException(name, "Key variable name expected");
+        this.error(name, "Key variable name expected");
+
+        if (this.currentToken().equals(",")) {
+          // the variable name is missing, but they are not done
+          this.readToken(); // ,
+          continue;
+        }
+
+        if (name.equalsIgnoreCase("in") && !"in".equalsIgnoreCase(this.nextToken())) {
+          break; // the variable name is missing, and they are done
+        }
+
+        this.readToken(); // unknown; skip
+        break;
       } else if (Parser.isReservedWord(name.content)) {
-        throw this.parseException(
-            name, "Reserved word '" + name + "' cannot be a key variable name");
+        this.error(name, "Reserved word '" + name + "' cannot be a key variable name");
+        names.add(null);
+        locations.add(null);
       } else if (names.contains(name.content)) {
-        throw this.parseException(name, "Key variable '" + name + "' is already defined");
+        this.error(name, "Key variable '" + name + "' is already defined");
+        names.add(null);
+        locations.add(null);
       } else {
         names.add(name.content);
         locations.add(this.makeLocation(name));
@@ -2162,7 +2304,8 @@ public class Parser {
         break;
       }
 
-      throw this.parseException("in", this.currentToken());
+      this.unexpectedTokenError("in", this.currentToken());
+      break;
     }
 
     // Get an aggregate reference
@@ -2172,7 +2315,11 @@ public class Parser {
       Location errorLocation =
           aggregate != null ? aggregate.getLocation() : this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Aggregate reference expected");
+      if (aggregate == null || !aggregate.getType().isBad()) {
+        this.error(errorLocation, "Aggregate reference expected");
+      }
+
+      aggregate = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     // Define key variables of appropriate type
@@ -2186,20 +2333,26 @@ public class Parser {
 
       Type itype;
       if (type == null) {
-        throw this.parseException(location, "Too many key variables specified");
+        this.error(location, "Too many key variables specified");
+
+        break;
       }
 
       if (type instanceof AggregateType) {
         itype = ((AggregateType) type).getIndexType();
         type = ((AggregateType) type).getDataType();
+      } else if (type.isBad()) {
+        itype = new BadType(null, null);
       } else { // Variable after all key vars holds the value instead
         itype = type;
         type = null;
       }
 
-      Variable keyvar = new Variable(name, itype, location);
-      varList.add(keyvar);
-      variableReferences.add(new VariableReference(keyvar.getLocation(), keyvar));
+      if (name != null) {
+        Variable keyvar = new Variable(name, itype, location);
+        varList.add(keyvar);
+        variableReferences.add(new VariableReference(keyvar.getLocation(), keyvar));
+      }
     }
 
     // Parse the scope with the list of keyVars
@@ -2230,10 +2383,13 @@ public class Parser {
     Variable indexvar;
 
     if (Parser.isReservedWord(name.content)) {
-      throw this.parseException(
-          name, "Reserved word '" + name + "' cannot be an index variable name");
+      this.error(name, "Reserved word '" + name + "' cannot be an index variable name");
+
+      indexvar = new BadVariable(name.content, DataTypes.INT_TYPE, this.makeLocation(name));
     } else if (parentScope.findVariable(name.content) != null) {
-      throw this.parseException(name, "Index variable '" + name + "' is already defined");
+      this.error(name, "Index variable '" + name + "' is already defined");
+
+      indexvar = new BadVariable(name.content, DataTypes.INT_TYPE, this.makeLocation(name));
     } else {
       indexvar = new Variable(name.content, DataTypes.INT_TYPE, this.makeLocation(name));
     }
@@ -2243,7 +2399,7 @@ public class Parser {
     if (this.currentToken().equalsIgnoreCase("from")) {
       this.readToken(); // from
     } else {
-      throw this.parseException("from", this.currentToken());
+      this.unexpectedTokenError("from", this.currentToken());
     }
 
     Evaluable initial = this.parseExpression(parentScope);
@@ -2251,7 +2407,9 @@ public class Parser {
     if (initial == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression for initial value expected");
+      this.error(errorLocation, "Expression for initial value expected");
+
+      initial = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     int direction = 0;
@@ -2266,7 +2424,7 @@ public class Parser {
       direction = 0;
       this.readToken(); // to
     } else {
-      throw this.parseException("to, upto, or downto", this.currentToken());
+      this.unexpectedTokenError("to, upto, or downto", this.currentToken());
     }
 
     Evaluable last = this.parseExpression(parentScope);
@@ -2274,7 +2432,9 @@ public class Parser {
     if (last == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression for floor/ceiling value expected");
+      this.error(errorLocation, "Expression for floor/ceiling value expected");
+
+      last = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     Evaluable increment = Value.locate(this.makeZeroWidthLocation(), DataTypes.ONE_VALUE);
@@ -2285,7 +2445,9 @@ public class Parser {
       if (increment == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "Expression for increment value expected");
+        this.error(errorLocation, "Expression for increment value expected");
+
+        increment = Value.locate(errorLocation, Value.BAD_VALUE);
       }
     }
 
@@ -2337,25 +2499,30 @@ public class Parser {
       Variable variable;
 
       if (!this.parseIdentifier(name.content) || Parser.isReservedWord(name.content)) {
-        throw this.parseException(name, "Identifier required");
+        this.error(name, "Identifier required");
       }
 
       // If there is no data type, it is using an existing variable
       if (t == null) {
         variable = parentScope.findVariable(name.content);
         if (variable == null) {
-          throw this.parseException(name, "Unknown variable '" + name + "'");
+          this.error(name, "Unknown variable '" + name + "'");
+
+          variable =
+              new BadVariable(name.content, new BadType(null, null), this.makeLocation(name));
         }
 
         t = variable.getType();
       } else {
-        if (scope.findVariable(name.content, true) != null) {
-          throw this.parseException(name, "Variable '" + name + "' already defined");
-        }
-
         // Create variable and add it to the scope
-        variable = new Variable(name.content, t, this.makeLocation(name));
-        scope.addVariable(variable);
+        variable = scope.findVariable(name.content, true);
+        if (variable == null) {
+          variable = new Variable(name.content, t, this.makeLocation(name));
+
+          scope.addVariable(variable);
+        } else {
+          this.error(name, "Variable '" + name + "' already defined");
+        }
       }
 
       this.readToken(); // name
@@ -2371,7 +2538,9 @@ public class Parser {
         if (rhs == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Expression expected");
+          this.error(errorLocation, "Expression expected");
+
+          rhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         Type ltype = t.getBaseType();
@@ -2379,8 +2548,10 @@ public class Parser {
         Type rtype = rhs.getType();
 
         if (!Operator.validCoercion(ltype, rtype, "assign")) {
-          throw this.parseException(
+          this.error(
               rhs.getLocation(), "Cannot store " + rtype + " in " + name + " of type " + ltype);
+
+          rhs = Value.locate(rhs.getLocation(), Value.BAD_VALUE);
         }
       }
 
@@ -2392,7 +2563,7 @@ public class Parser {
         this.readToken(); // ,
 
         if (this.currentToken().equals(";")) {
-          throw this.parseException(this.currentToken(), "Identifier expected");
+          this.error(this.currentToken(), "Identifier expected");
         }
       }
     }
@@ -2400,7 +2571,7 @@ public class Parser {
     if (this.currentToken().equals(";")) {
       this.readToken(); // ;
     } else {
-      throw this.parseException(";", this.currentToken());
+      this.unexpectedTokenError(";", this.currentToken());
     }
 
     // Parse condition in context of scope
@@ -2413,26 +2584,35 @@ public class Parser {
     if (condition == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     if (this.currentToken().equals(";")) {
       this.readToken(); // ;
     } else {
-      throw this.parseException(";", this.currentToken());
+      this.unexpectedTokenError(";", this.currentToken());
     }
 
-    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE)) {
+    if (!condition.getType().equals(DataTypes.BOOLEAN_TYPE) && !condition.getType().isBad()) {
       Location errorLocation = condition.getLocation();
 
-      throw this.parseException(errorLocation, "\"for\" requires a boolean conditional expression");
+      this.error(errorLocation, "\"for\" requires a boolean conditional expression");
+
+      condition = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     // Parse incrementers in context of scope
 
     List<Command> incrementers = new ArrayList<>();
 
-    while (!this.atEndOfFile() && !this.currentToken().equals(")")) {
+    Position previousPosition = null;
+    while (this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
+      if (this.atEndOfFile() || this.currentToken().equals(")")) {
+        break;
+      }
+
       Evaluable value = this.parsePreIncDec(scope);
       if (value != null) {
         incrementers.add(value);
@@ -2442,7 +2622,9 @@ public class Parser {
           Location errorLocation =
               value != null ? value.getLocation() : this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Variable reference expected");
+          this.error(errorLocation, "Variable reference expected");
+
+          value = badVariableReference(errorLocation);
         }
 
         VariableReference ref = (VariableReference) value;
@@ -2454,8 +2636,7 @@ public class Parser {
           if (incrementer != null) {
             incrementers.add(incrementer);
           } else {
-            throw this.parseException(
-                value.getLocation(), "Variable '" + ref.getName() + "' not incremented");
+            this.error(value.getLocation(), "Variable '" + ref.getName() + "' not incremented");
           }
         } else {
           incrementers.add(lhs);
@@ -2466,7 +2647,7 @@ public class Parser {
         this.readToken(); // ,
 
         if (this.atEndOfFile() || this.currentToken().equals(")")) {
-          throw this.parseException(this.currentToken(), "Identifier expected");
+          this.error(this.currentToken(), "Identifier expected");
         }
       }
     }
@@ -2474,7 +2655,7 @@ public class Parser {
     if (this.currentToken().equals(")")) {
       this.readToken(); // )
     } else {
-      throw this.parseException(")", this.currentToken());
+      this.unexpectedTokenError(")", this.currentToken());
     }
 
     // Parse scope body
@@ -2498,12 +2679,12 @@ public class Parser {
 
       this.readToken(); // {
 
-      this.parseScope(result, functionType, parentScope, true, true);
+      this.parseScope(result, functionType, parentScope, false, true, true);
 
       if (this.currentToken().equals("}")) {
         this.readToken(); // }
       } else {
-        throw this.parseException("}", this.currentToken());
+        this.unexpectedTokenError("}", this.currentToken());
       }
     } else {
       // Scope is a single command
@@ -2512,7 +2693,7 @@ public class Parser {
         if (this.currentToken().equals(";")) {
           this.readToken(); // ;
         } else {
-          throw this.parseException(";", this.currentToken());
+          this.unexpectedTokenError(";", this.currentToken());
         }
       } else {
         result.addCommand(command, this);
@@ -2535,14 +2716,18 @@ public class Parser {
     this.readToken();
 
     if (!this.parseIdentifier(this.currentToken().content)) {
-      throw this.parseException("Record name", this.currentToken());
+      this.unexpectedTokenError("Record name", this.currentToken());
+
+      return Value.locate(this.makeLocation(this.peekPreviousToken()), Value.BAD_VALUE);
     }
 
     Token name = this.currentToken();
     Type type = scope.findType(name.content);
 
     if (!(type instanceof RecordType)) {
-      throw this.parseException(name, "'" + name + "' is not a record type");
+      this.error(name, "'" + name + "' is not a record type");
+
+      type = new BadRecordType(null, this.makeLocation(name));
     }
 
     RecordType target = (RecordType) type;
@@ -2557,9 +2742,11 @@ public class Parser {
     if (this.currentToken().equals("(")) {
       this.readToken(); // (
 
-      while (true) {
+      Position previousPosition = null;
+      while (this.madeProgress(previousPosition, previousPosition = this.getCurrentPosition())) {
         if (this.atEndOfFile()) {
-          throw this.parseException(")", this.currentToken());
+          this.unexpectedTokenError(")", this.currentToken());
+          break;
         }
 
         if (this.currentToken().equals(")")) {
@@ -2574,8 +2761,9 @@ public class Parser {
           currentType = types[param];
           errorMessageFieldName = " (" + names[param] + ")";
         } else {
-          throw this.parseException(
-              this.currentToken(), "Too many field initializers for record " + name);
+          this.error(this.currentToken(), "Too many field initializers for record " + name);
+
+          currentType = new BadType(null, null);
         }
 
         Type expected = currentType.getBaseType();
@@ -2587,13 +2775,15 @@ public class Parser {
           if (expected instanceof AggregateType) {
             val = this.parseAggregateLiteral(scope, (AggregateType) expected);
           } else {
-            throw this.parseException(
+            this.error(
                 this.currentToken(),
                 "Aggregate literal found when "
                     + expected
                     + " expected for field #"
                     + (param + 1)
                     + errorMessageFieldName);
+
+            val = this.parseAggregateLiteral(scope, badAggregateType());
           }
         } else {
           val = this.parseExpression(scope);
@@ -2602,9 +2792,11 @@ public class Parser {
         if (val == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(
+          this.error(
               errorLocation,
               "Expression expected for field #" + (param + 1) + errorMessageFieldName);
+
+          val = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         if (!val.evaluatesTo(DataTypes.VOID_VALUE)) {
@@ -2613,7 +2805,7 @@ public class Parser {
           if (!Operator.validCoercion(expected, given, "assign")) {
             Location errorLocation = val.getLocation();
 
-            throw this.parseException(
+            this.error(
                 errorLocation,
                 given
                     + " found when "
@@ -2621,6 +2813,8 @@ public class Parser {
                     + " expected for field #"
                     + (param + 1)
                     + errorMessageFieldName);
+
+            val = Value.locate(errorLocation, Value.BAD_VALUE);
           }
         }
 
@@ -2630,7 +2824,8 @@ public class Parser {
         if (this.currentToken().equals(",")) {
           this.readToken(); // ,
         } else if (!this.currentToken().equals(")")) {
-          throw this.parseException(", or )", this.currentToken());
+          this.unexpectedTokenError(", or )", this.currentToken());
+          break;
         }
       }
     }
@@ -2667,7 +2862,17 @@ public class Parser {
     if (target != null) {
       params = this.autoCoerceParameters(target, params, scope);
     } else {
-      throw this.undefinedFunctionException(name, params);
+      // Don't make an error if the function couldn't be found
+      // because the user messed up one of the parameters
+      // (since that means we already made one earlier)
+      boolean alreadyErrored =
+          params.stream().anyMatch(param -> param != null && param.getType().isBad());
+
+      if (!alreadyErrored) {
+        this.undefinedFunctionError(name, params);
+      }
+
+      target = new BadFunction(name.content);
     }
 
     FunctionCall call = new FunctionCall(functionCallLocation, target, params, this);
@@ -2688,7 +2893,8 @@ public class Parser {
 
     while (true) {
       if (this.atEndOfFile()) {
-        throw this.parseException(")", this.currentToken());
+        this.unexpectedTokenError(")", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals(")")) {
@@ -2702,12 +2908,14 @@ public class Parser {
       }
 
       if (this.atEndOfFile()) {
-        throw this.parseException(")", this.currentToken());
+        this.unexpectedTokenError(")", this.currentToken());
+        break;
       }
 
       if (!this.currentToken().equals(",")) {
         if (!this.currentToken().equals(")")) {
-          throw this.parseException(")", this.currentToken());
+          this.unexpectedTokenError(")", this.currentToken());
+          break;
         }
         continue;
       }
@@ -2715,11 +2923,13 @@ public class Parser {
       this.readToken(); // ,
 
       if (this.atEndOfFile()) {
-        throw this.parseException("parameter", this.currentToken());
+        this.unexpectedTokenError("parameter", this.currentToken());
+        break;
       }
 
       if (this.currentToken().equals(")")) {
-        throw this.parseException("parameter", this.currentToken());
+        this.unexpectedTokenError("parameter", this.currentToken());
+        // we'll break out at the start of the next loop
       }
     }
 
@@ -2763,10 +2973,13 @@ public class Parser {
     if (current.equals("(")) {
       name = this.parseExpression(scope);
 
-      if (name == null || !name.getType().equals(DataTypes.STRING_TYPE)) {
+      if (name == null
+          || !name.getType().equals(DataTypes.STRING_TYPE) && !name.getType().isBad()) {
         Location errorLocation = name != null ? name.getLocation() : this.makeLocation(current);
 
-        throw this.parseException(errorLocation, "String expression expected for function name");
+        this.error(errorLocation, "String expression expected for function name");
+
+        name = Value.locate(errorLocation, Value.BAD_VALUE);
       }
     } else {
       name = this.parseVariableReference(scope);
@@ -2775,7 +2988,9 @@ public class Parser {
         Location errorLocation =
             name != null ? name.getLocation() : this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "Variable reference expected for function name");
+        this.error(errorLocation, "Variable reference expected for function name");
+
+        name = badVariableReference(errorLocation);
       }
     }
 
@@ -2784,7 +2999,9 @@ public class Parser {
     if (this.currentToken().equals("(")) {
       params = this.parseParameters(scope, null);
     } else {
-      throw this.parseException("(", this.currentToken());
+      this.unexpectedTokenError("(", this.currentToken());
+
+      params = new ArrayList<>();
     }
 
     Location invokeLocation = this.makeLocation(invokeStartToken, this.peekPreviousToken());
@@ -2816,7 +3033,7 @@ public class Parser {
     boolean isAggregate = (ltype instanceof AggregateType);
 
     if (isAggregate && !operStr.equals("=")) {
-      throw this.parseException(operStr, "Cannot use '" + operStr + "' on an aggregate");
+      this.error(operStr, "Cannot use '" + operStr + "' on an aggregate");
     }
 
     Operator oper = new Operator(this.makeLocation(operStr), operStr.content, this);
@@ -2830,8 +3047,9 @@ public class Parser {
       } else {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(
-            errorLocation, "Cannot use an aggregate literal for type " + lhs.getType());
+        this.error(errorLocation, "Cannot use an aggregate literal for type " + lhs.getType());
+
+        rhs = this.parseAggregateLiteral(scope, badAggregateType());
       }
     } else {
       rhs = this.parseExpression(scope);
@@ -2840,7 +3058,9 @@ public class Parser {
     if (rhs == null) {
       Location errorLocation = this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Expression expected");
+      this.error(errorLocation, "Expression expected");
+
+      rhs = Value.locate(errorLocation, Value.BAD_VALUE);
     }
 
     rhs = this.autoCoerceValue(lhs.getRawType(), rhs, scope);
@@ -2852,7 +3072,7 @@ public class Parser {
               : oper.isInteger()
                   ? (oper + " requires an integer expression and an integer variable reference")
                   : ("Cannot store " + rhs.getType() + " in " + lhs + " of type " + lhs.getType());
-      throw this.parseException(Parser.mergeLocations(lhs.getLocation(), rhs.getLocation()), error);
+      this.error(Parser.mergeLocations(lhs.getLocation(), rhs.getLocation()), error);
     }
 
     Operator op = null;
@@ -2898,13 +3118,14 @@ public class Parser {
       Location errorLocation =
           lhs != null ? lhs.getLocation() : this.makeLocation(this.currentToken());
 
-      throw this.parseException(errorLocation, "Variable reference expected");
+      this.error(errorLocation, "Variable reference expected");
+
+      lhs = badVariableReference(errorLocation);
     }
 
     int ltype = lhs.getType().getType();
-    if (ltype != DataTypes.TYPE_INT && ltype != DataTypes.TYPE_FLOAT) {
-      throw this.parseException(
-          lhs.getLocation(), operStr + " requires a numeric variable reference");
+    if (ltype != DataTypes.TYPE_INT && ltype != DataTypes.TYPE_FLOAT && !lhs.getType().isBad()) {
+      this.error(lhs.getLocation(), operStr + " requires a numeric variable reference");
     }
 
     Operator oper = new Operator(this.makeLocation(operToken), operStr, this);
@@ -2925,9 +3146,8 @@ public class Parser {
     String operStr = operToken.equals("++") ? Parser.POST_INCREMENT : Parser.POST_DECREMENT;
 
     int ltype = lhs.getType().getType();
-    if (ltype != DataTypes.TYPE_INT && ltype != DataTypes.TYPE_FLOAT) {
-      throw this.parseException(
-          lhs.getLocation(), operStr + " requires a numeric variable reference");
+    if (ltype != DataTypes.TYPE_INT && ltype != DataTypes.TYPE_FLOAT && !lhs.getType().isBad()) {
+      this.error(lhs.getLocation(), operStr + " requires a numeric variable reference");
     }
 
     this.readToken(); // oper
@@ -2958,13 +3178,15 @@ public class Parser {
       if ((lhs = this.parseEvaluable(scope)) == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "Value expected");
+        this.error(errorLocation, "Value expected");
+
+        lhs = Value.locate(errorLocation, Value.BAD_VALUE);
       }
 
       lhs = this.autoCoerceValue(DataTypes.BOOLEAN_TYPE, lhs, scope);
       lhs = new Operation(lhs, oper);
-      if (!lhs.getType().equals(DataTypes.BOOLEAN_TYPE)) {
-        throw this.parseException(lhs.getLocation(), "\"!\" operator requires a boolean value");
+      if (!lhs.getType().equals(DataTypes.BOOLEAN_TYPE) && !lhs.getType().isBad()) {
+        this.error(lhs.getLocation(), "\"!\" operator requires a boolean value");
       }
     } else if (operator.equals("~")) {
       oper = new Operator(this.makeLocation(operator), operator.content, this);
@@ -2972,14 +3194,16 @@ public class Parser {
       if ((lhs = this.parseEvaluable(scope)) == null) {
         Location errorLocation = this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "Value expected");
+        this.error(errorLocation, "Value expected");
+
+        lhs = Value.locate(errorLocation, Value.BAD_VALUE);
       }
 
       lhs = new Operation(lhs, oper);
       if (!lhs.getType().equals(DataTypes.INT_TYPE)
-          && !lhs.getType().equals(DataTypes.BOOLEAN_TYPE)) {
-        throw this.parseException(
-            lhs.getLocation(), "\"~\" operator requires an integer or boolean value");
+          && !lhs.getType().equals(DataTypes.BOOLEAN_TYPE)
+          && !lhs.getType().isBad()) {
+        this.error(lhs.getLocation(), "\"~\" operator requires an integer or boolean value");
       }
     } else if (operator.equals("-")) {
       // See if it's a negative numeric constant
@@ -2990,14 +3214,16 @@ public class Parser {
         if ((lhs = this.parseEvaluable(scope)) == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Value expected");
+          this.error(errorLocation, "Value expected");
+
+          lhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         lhs = new Operation(lhs, oper);
         if (!lhs.getType().equals(DataTypes.INT_TYPE)
-            && !lhs.getType().equals(DataTypes.FLOAT_TYPE)) {
-          throw this.parseException(
-              lhs.getLocation(), "\"-\" operator requires an integer or float value");
+            && !lhs.getType().equals(DataTypes.FLOAT_TYPE)
+            && !lhs.getType().isBad()) {
+          this.error(lhs.getLocation(), "\"-\" operator requires an integer or float value");
         }
       }
     } else if (operator.equalsIgnoreCase("remove")) {
@@ -3009,7 +3235,13 @@ public class Parser {
         Location errorLocation =
             lhs != null ? lhs.getLocation() : this.makeLocation(this.currentToken());
 
-        throw this.parseException(errorLocation, "Aggregate reference expected");
+        if (lhs == null || !lhs.getType().isBad()) {
+          this.error(errorLocation, "Aggregate reference expected");
+        }
+
+        if (!(lhs instanceof VariableReference)) {
+          lhs = badVariableReference(errorLocation);
+        }
       }
 
       lhs = new Operation(lhs, oper);
@@ -3037,8 +3269,9 @@ public class Parser {
 
         Evaluable conditional = lhs;
 
-        if (!conditional.getType().equals(DataTypes.BOOLEAN_TYPE)) {
-          throw this.parseException(
+        if (!conditional.getType().equals(DataTypes.BOOLEAN_TYPE)
+            && !conditional.getType().isBad()) {
+          this.error(
               conditional.getLocation(),
               "Non-boolean expression " + conditional + " (" + conditional.getType() + ")");
         }
@@ -3046,23 +3279,27 @@ public class Parser {
         if ((lhs = this.parseExpression(scope)) == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Value expected in left hand side");
+          this.error(errorLocation, "Value expected in left hand side");
+
+          lhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         if (this.currentToken().equals(":")) {
           this.readToken(); // :
         } else {
-          throw this.parseException(":", this.currentToken());
+          this.unexpectedTokenError(":", this.currentToken());
         }
 
         if ((rhs = this.parseExpression(scope)) == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Value expected in right hand side");
+          this.error(errorLocation, "Value expected in right hand side");
+
+          rhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         if (!oper.validCoercion(lhs.getType(), rhs.getType())) {
-          throw this.parseException(
+          this.error(
               Parser.mergeLocations(lhs.getLocation(), rhs.getLocation()),
               "Cannot choose between "
                   + lhs
@@ -3082,7 +3319,9 @@ public class Parser {
         if ((rhs = this.parseExpression(scope, oper)) == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Value expected");
+          this.error(errorLocation, "Value expected");
+
+          rhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         Type ltype = lhs.getType();
@@ -3107,7 +3346,7 @@ public class Parser {
 
           rhs = this.autoCoerceValue(ltype, rhs, scope);
           if (!oper.validCoercion(ltype, rhs.getType())) {
-            throw this.parseException(
+            this.error(
                 operationLocation,
                 "Cannot apply operator "
                     + oper
@@ -3145,7 +3384,7 @@ public class Parser {
       if (this.currentToken().equals(")")) {
         this.readToken(); // )
       } else {
-        throw this.parseException(")", this.currentToken());
+        this.unexpectedTokenError(")", this.currentToken());
       }
 
       if (result != null) {
@@ -3188,7 +3427,10 @@ public class Parser {
         if (this.currentToken().equals("{")) {
           result = this.parseAggregateLiteral(scope, (AggregateType) baseType.getBaseType());
         } else {
-          throw this.parseException("{", this.currentToken());
+          this.unexpectedTokenError("{", this.currentToken());
+          // don't parse. We don't know if they just didn't put anything.
+
+          result = Value.locate(this.makeZeroWidthLocation(), Value.BAD_VALUE);
         }
       } else {
         if (baseType != null) {
@@ -3243,7 +3485,9 @@ public class Parser {
         this.readToken(); // integer
         number = new Value(sign * StringUtilities.parseDouble("0." + fraction));
       } else {
-        throw this.parseException("numeric value", fraction);
+        this.unexpectedTokenError("numeric value", fraction);
+
+        number = new Value(0);
       }
 
       return Value.locate(this.makeLocation(numberStartToken, this.peekPreviousToken()), number);
@@ -3324,7 +3568,18 @@ public class Parser {
         }
 
         // Plain strings can't span lines
-        throw this.parseException(stringStartPosition, "No closing " + stopCharacter + " found");
+        this.error(stringStartPosition, "No closing " + stopCharacter + " found");
+
+        Evaluable result =
+            Value.locate(
+                this.makeLocation(stringStartPosition), new Value(resultString.toString()));
+
+        if (conc == null) {
+          return result;
+        } else {
+          conc.addString(result);
+          return conc;
+        }
       }
 
       char ch = line.charAt(i);
@@ -3346,7 +3601,9 @@ public class Parser {
         if (rhs == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(errorLocation, "Expression expected");
+          this.error(errorLocation, "Expression expected");
+
+          rhs = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
         // Set i to -1 so that it is set to zero by the loop, as the
@@ -3359,7 +3616,7 @@ public class Parser {
           // Increment manually to not skip whitespace after the curly brace.
           ++i; // }
         } else {
-          throw this.parseException("}", this.currentToken());
+          this.unexpectedTokenError("}", this.currentToken());
         }
 
         this.clearCurrentToken();
@@ -3438,8 +3695,9 @@ public class Parser {
                       new Position(this.getLineNumber() - 1, backslashIndex),
                       Math.min(4, line.length() - backslashIndex)));
 
-          throw this.parseException(
-              errorLocation, "Hexadecimal character escape requires 2 digits");
+          this.error(errorLocation, "Hexadecimal character escape requires 2 digits");
+
+          resultString.append(ch);
         }
         break;
 
@@ -3455,7 +3713,9 @@ public class Parser {
                       new Position(this.getLineNumber() - 1, backslashIndex),
                       Math.min(6, line.length() - backslashIndex)));
 
-          throw this.parseException(errorLocation, "Unicode character escape requires 4 digits");
+          this.error(errorLocation, "Unicode character escape requires 4 digits");
+
+          resultString.append(ch);
         }
         break;
 
@@ -3473,7 +3733,7 @@ public class Parser {
                         new Position(this.getLineNumber() - 1, backslashIndex),
                         Math.min(4, line.length() - backslashIndex)));
 
-            throw this.parseException(errorLocation, "Octal character escape requires 3 digits");
+            this.error(errorLocation, "Octal character escape requires 3 digits");
           }
         }
         resultString.append(ch);
@@ -3485,7 +3745,11 @@ public class Parser {
   private Value parseLiteral(final Type type, final String element, final Location location) {
     Value value = DataTypes.parseValue(type, element, false);
     if (value == null) {
-      throw this.parseException(location, "Bad " + type.toString() + " value: \"" + element + "\"");
+      if (!type.isBad()) {
+        this.error(location, "Bad " + type.toString() + " value: \"" + element + "\"");
+      }
+
+      return Value.BAD_VALUE;
     }
 
     if (!StringUtilities.isNumeric(element)) {
@@ -3535,27 +3799,15 @@ public class Parser {
         }
 
         if (names.size() > 1) {
-          String message =
-              "Multiple matches for \""
-                  + s1
-                  + "\"; using \""
-                  + s2
-                  + "\". "
-                  + this.getLineAndFile()
-                  + " Clarify by using one of:";
-          RequestLogger.printLine(message);
-          for (String name : names) {
-            RequestLogger.printLine(name);
-          }
+          this.warning(
+              location,
+              "Multiple matches for \"" + s1 + "\"; using \"" + s2 + "\".",
+              "Clarify by using one of:"
+                  + KoLConstants.LINE_BREAK
+                  + String.join(KoLConstants.LINE_BREAK, names));
         } else {
-          String message =
-              "Changing \""
-                  + s1
-                  + "\" to \""
-                  + s2
-                  + "\" would get rid of this message. "
-                  + this.getLineAndFile();
-          RequestLogger.printLine(message);
+          this.warning(
+              location, "Changing \"" + s1 + "\" to \"" + s2 + "\" would get rid of this message.");
         }
       }
     }
@@ -3604,19 +3856,26 @@ public class Parser {
     }
 
     if (type == null) {
-      throw this.parseException(name, "Unknown type " + name);
+      this.error(name, "Unknown type " + name);
+
+      type = new BadType(name.content, this.makeLocation(name));
     } else {
       type = type.reference(this.makeLocation(name));
     }
 
-    if (!type.isPrimitive()) {
-      throw this.parseException(name, "Non-primitive type " + name);
+    if (!type.isPrimitive() && !type.isBad()) {
+      this.error(name, "Non-primitive type " + name);
+
+      type = new BadType(name.content, this.makeLocation(name));
     }
 
     if (this.currentToken().equals("[")) {
       this.readToken(); // read [
     } else {
-      throw this.parseException("[", this.currentToken());
+      this.unexpectedTokenError("[", this.currentToken());
+
+      return Value.locate(
+          this.makeLocation(typedConstantStartToken, this.peekPreviousToken()), Value.BAD_VALUE);
     }
 
     if (plurals) {
@@ -3633,7 +3892,9 @@ public class Parser {
         return Value.locate(typedConstantLocation, value); // implicit enumeration
       }
 
-      throw this.parseException(typedConstantLocation, "Can't enumerate all " + name);
+      this.error(typedConstantLocation, "Can't enumerate all " + name);
+
+      return Value.locate(typedConstantLocation, Value.BAD_VALUE);
     }
 
     StringBuilder resultString = new StringBuilder();
@@ -3653,21 +3914,21 @@ public class Parser {
 
         Location currentElementLocation = this.makeLocation(currentElementStartPosition);
 
-        throw this.parseException(currentElementLocation, "No closing ] found");
+        this.error(currentElementLocation, "No closing ] found");
+
+        String input = resultString.toString().trim();
+        result = this.parseLiteral(type, input, currentElementLocation);
+        break;
       }
 
       char c = line.charAt(i);
       if (c == '\\') {
-        if (++i == line.length()) {
-          this.currentLine.makeToken(i);
-          this.currentIndex += i;
-
-          Location currentElementLocation = this.makeLocation(currentElementStartPosition);
-
-          throw this.parseException(currentElementLocation, "No closing ] found");
+        if (i == line.length() - 1) {
+          // Will throw an error at the start of the next loop
+          continue;
         }
 
-        resultString.append(line.charAt(i));
+        resultString.append(line.charAt(++i));
       } else if (c == '[') {
         level++;
         resultString.append(c);
@@ -3724,7 +3985,14 @@ public class Parser {
         if (this.currentLine.content == null) {
           Location currentElementLocation = this.makeLocation(currentElementStartPosition);
 
-          throw this.parseException(currentElementLocation, "No closing ] found");
+          this.error(currentElementLocation, "No closing ] found");
+
+          String element = resultString.toString().trim();
+          if (element.length() != 0) {
+            list.add(this.parseLiteral(type, element, currentElementLocation));
+          }
+
+          break;
         }
 
         this.currentLine = this.currentLine.nextLine;
@@ -3799,13 +4067,16 @@ public class Parser {
           this.currentIndex += i;
         }
         this.readToken(); // read ]
-        if (list.size() == 0) {
-          // Empty list - caller will interpret this specially
-          return null;
-        }
-        return new PluralValue(type, list);
+
+        break;
       }
     }
+
+    if (list.size() == 0) {
+      // Empty list - caller will interpret this specially
+      return null;
+    }
+    return new PluralValue(type, list);
   }
 
   private Operator parseOperator(final Token oper) {
@@ -3857,7 +4128,9 @@ public class Parser {
     Variable variable = scope.findVariable(name.content, true);
 
     if (variable == null) {
-      throw this.parseException(variableLocation, "Unknown variable '" + name + "'");
+      this.error(variableLocation, "Unknown variable '" + name + "'");
+
+      variable = new BadVariable(name.content, new BadType(null, null), variableLocation);
     }
 
     this.readToken(); // read name
@@ -3893,14 +4166,19 @@ public class Parser {
         parseAggregate = true;
 
         if (!(type instanceof AggregateType)) {
-          Location location = Parser.makeLocation(current.getLocation(), this.peekPreviousToken());
-          String message;
-          if (indices.isEmpty()) {
-            message = "Variable '" + varRef.getName() + "' cannot be indexed";
-          } else {
-            message = "Too many keys for '" + varRef.getName() + "'";
+          if (!type.isBad()) {
+            Location location =
+                Parser.makeLocation(current.getLocation(), this.peekPreviousToken());
+            String message;
+            if (indices.isEmpty()) {
+              message = "Variable '" + varRef.getName() + "' cannot be indexed";
+            } else {
+              message = "Too many keys for '" + varRef.getName() + "'";
+            }
+            this.error(location, message);
           }
-          throw this.parseException(location, message);
+
+          type = badAggregateType();
         }
 
         AggregateType atype = (AggregateType) type;
@@ -3908,12 +4186,15 @@ public class Parser {
         if (index == null) {
           Location errorLocation = this.makeLocation(this.currentToken());
 
-          throw this.parseException(
-              errorLocation, "Index for '" + current.getName() + "' expected");
+          this.error(errorLocation, "Index for '" + current.getName() + "' expected");
+
+          index = Value.locate(errorLocation, Value.BAD_VALUE);
         }
 
-        if (!index.getType().getBaseType().equals(atype.getIndexType().getBaseType())) {
-          throw this.parseException(
+        if (!index.getType().getBaseType().equals(atype.getIndexType().getBaseType())
+            && !index.getType().isBad()
+            && !atype.getIndexType().isBad()) {
+          this.error(
               index.getLocation(),
               "Index for '"
                   + current.getName()
@@ -3937,7 +4218,11 @@ public class Parser {
 
         type = type.asProxy();
         if (!(type instanceof RecordType)) {
-          throw this.parseException(current.getLocation(), "Record expected");
+          if (!type.isBad()) {
+            this.error(current.getLocation(), "Record expected");
+          }
+
+          type = new BadRecordType(null, null);
         }
 
         RecordType rtype = (RecordType) type;
@@ -3946,14 +4231,17 @@ public class Parser {
         if (this.parseIdentifier(field.content)) {
           this.readToken(); // read name
         } else {
-          throw this.parseException(field, "Field name expected");
+          this.error(field, "Field name expected");
         }
 
         index = Value.locate(this.makeLocation(field), rtype.getFieldIndex(field.content));
         if (index != null) {
           type = rtype.getDataType(index);
         } else {
-          throw this.parseException(field, "Invalid field name '" + field + "'");
+          this.error(field, "Invalid field name '" + field + "'");
+
+          index = Value.locate(this.makeLocation(field), Value.BAD_VALUE);
+          type = new BadType(null, null);
         }
       }
 
@@ -3970,7 +4258,7 @@ public class Parser {
     }
 
     if (parseAggregate) {
-      throw this.parseException("]", this.currentToken());
+      this.unexpectedTokenError("]", this.currentToken());
     }
 
     return current;
@@ -3996,7 +4284,9 @@ public class Parser {
     this.readToken(); // directive
 
     if (this.atEndOfFile()) {
-      throw this.parseException("<", this.currentToken());
+      this.unexpectedTokenError("<", this.currentToken());
+
+      return null;
     }
 
     // We called atEndOfFile(), which calls currentToken() to trim whitespace
@@ -4031,7 +4321,9 @@ public class Parser {
         this.currentToken = this.currentLine.makeToken(endIndex);
         this.readToken();
 
-        throw this.parseException(this.peekPreviousToken(), "No closing " + ch + " found");
+        this.error(this.peekPreviousToken(), "No closing " + ch + " found");
+
+        break;
       }
 
       resultString = line.substring(1, endIndex);
@@ -4523,75 +4815,6 @@ public class Parser {
     }
   }
 
-  private ScriptException parseException(final String expected, final Token found) {
-    String foundString = found.content;
-
-    if (found.getLine().content == null) {
-      foundString = "end of file";
-    }
-
-    return this.parseException(found, "Expected " + expected + ", found " + foundString);
-  }
-
-  private ScriptException parseException(final String message) {
-    return this.parseException(this.getCurrentPosition(), message);
-  }
-
-  private ScriptException parseException(final Position start, final String message) {
-    return this.parseException(this.rangeToHere(start), message);
-  }
-
-  private ScriptException parseException(final Range range, final String message) {
-    return this.parseException(this.makeLocation(range), message);
-  }
-
-  private ScriptException parseException(final Range start, final Range end, final String message) {
-    return this.parseException(Parser.mergeRanges(start, end), message);
-  }
-
-  private ScriptException parseException(Location location, final String message) {
-    if (location == null) {
-      location = this.makeZeroWidthLocation();
-    }
-
-    return new ScriptException(
-        message + " (" + Parser.getFileAndRange(this.shortFileName, location.getRange()) + ")");
-  }
-
-  private ScriptException undefinedFunctionException(
-      final Token name, final List<Evaluable> params) {
-    return this.parseException(name, Parser.undefinedFunctionMessage(name.content, params));
-  }
-
-  private ScriptException multiplyDefinedFunctionException(final Function f) {
-    String buffer = "Function '" + f.getSignature() + "' defined multiple times.";
-    return this.parseException(f.getLocation(), buffer);
-  }
-
-  private ScriptException overridesLibraryFunctionException(final Function f) {
-    String buffer = "Function '" + f.getSignature() + "' overrides a library function.";
-    return this.parseException(f.getLocation(), buffer);
-  }
-
-  private ScriptException varargClashException(final Function f, final Function clash) {
-    String buffer =
-        "Function '"
-            + f.getSignature()
-            + "' clashes with existing function '"
-            + clash.getSignature()
-            + "'.";
-    return this.parseException(f.getLocation(), buffer);
-  }
-
-  public final ScriptException sinceException(
-      final String current, final String target, final Range directiveRange) {
-    String template =
-        "'%s' requires revision r%s of kolmafia or higher (current: r%s).  Up-to-date builds can be found at https://ci.kolmafia.us/.";
-
-    return this.parseException(
-        directiveRange, String.format(template, this.shortFileName, target, current));
-  }
-
   private void unexpectedTokenError(final String expected, final Token found) {
     String foundString = found.content;
 
@@ -4653,24 +4876,26 @@ public class Parser {
         // A revision of zero means you're probably running in a debugger, in which
         // case you should be able to run anything.
         if (currentRevision != 0 && currentRevision < targetRevision) {
-          throw this.sinceException(String.valueOf(currentRevision), revision, directiveRange);
+          this.sinceError(String.valueOf(currentRevision), revision, directiveRange);
+          return;
         }
       } else { // version (or syntax error)
         String[] target = revision.split("\\.");
         if (target.length != 2) {
-          throw this.parseException(directiveRange, "invalid 'since' format");
+          this.error(directiveRange, "invalid 'since' format");
+          return;
         }
 
         int targetMajor = Integer.parseInt(target[0]);
         int targetMinor = Integer.parseInt(target[1]);
 
         if (targetMajor > 21 || targetMajor == 21 && targetMinor > 9) {
-          throw this.parseException(
-              directiveRange, "invalid 'since' format (21.09 was the final point release)");
+          this.error(directiveRange, "invalid 'since' format (21.09 was the final point release)");
+          return;
         }
       }
     } catch (NumberFormatException e) {
-      throw this.parseException(directiveRange, "invalid 'since' format");
+      this.error(directiveRange, "invalid 'since' format");
     }
   }
 
@@ -4700,8 +4925,8 @@ public class Parser {
             otherInfo));
   }
 
-  public final void warning(final String msg) {
-    RequestLogger.printLine("WARNING: " + msg + " " + this.getLineAndFile());
+  public final void warning(final String msg, final String... otherInfo) {
+    this.warning(this.getCurrentPosition(), msg, otherInfo);
   }
 
   public final void warning(final Position start, final String msg, final String... otherInfo) {
@@ -4734,10 +4959,6 @@ public class Parser {
     }
 
     buffer.append(" )");
-  }
-
-  private String getLineAndFile() {
-    return Parser.getLineAndFile(this.shortFileName, this.getLineNumber());
   }
 
   public static String getLineAndFile(final String fileName, final int lineNumber) {
