@@ -1047,6 +1047,8 @@ user	prayedForProtection	false
 user	prayedForVigor	false
 user	preAscensionScript
 user	preBlackbirdFamiliar
+user	primaryLabGooIntensity	10
+user	primaryLabCheerCoreGrabbed	false
 user	prismaticSummons	0
 user	procrastinatorLanguageFluency	0
 user	promptAboutCrafting	1
@@ -1459,6 +1461,7 @@ user	_abstractionDropsCrown	0
 user	_affirmationCookieEaten	false
 user	_affirmationHateUsed	false
 user	_aguaDrops	0
+user	_airFryerUsed	false
 user	_akgyxothUsed	false
 user	_xenomorphCharge	0
 user	_alienAnimalMilkUsed	false
@@ -1886,6 +1889,7 @@ user	_pocketProfessorLectures	0
 user	_poisonArrows	0
 user	_pokeGrowFertilizerDrops	0
 user	_poolGames	0
+user	_potatoAlarmClockUsed	false
 user	_pottedTeaTreeUsed	false
 user	_powderedGoldDrops	0
 user	_powderedMadnessUses	0
@@ -2846,6 +2850,7 @@ user	choiceAdventure1405	1
 user	choiceAdventure1411	0
 user	choiceAdventure1415	0
 user	choiceAdventure1460	8
+user	choiceAdventure1461	4
 
 user	lockedItem4637	true
 user	lockedItem4638	true
