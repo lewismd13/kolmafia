@@ -38,6 +38,7 @@ import net.sourceforge.kolmafia.combat.MonsterStatusTracker;
 import net.sourceforge.kolmafia.moods.HPRestoreItemList;
 import net.sourceforge.kolmafia.moods.MPRestoreItemList;
 import net.sourceforge.kolmafia.objectpool.EffectPool;
+import net.sourceforge.kolmafia.objectpool.FamiliarPool;
 import net.sourceforge.kolmafia.objectpool.IntegerPool;
 import net.sourceforge.kolmafia.objectpool.ItemPool;
 import net.sourceforge.kolmafia.objectpool.OutfitPool;
@@ -6077,7 +6078,7 @@ public abstract class ChoiceManager {
           new Option("return to Site Alpha")
         }),
 
-    // (Unnamed choice adventure)
+    // Hello Knob My Old Friend
     new ChoiceAdventure(
         "Crimbo21",
         "choiceAdventure1461",
@@ -13368,6 +13369,14 @@ public abstract class ChoiceManager {
         Preferences.setBoolean("lockPicked", true);
         break;
 
+      case 1418:
+        // So Cold
+        if (ChoiceManager.lastDecision == 1) {
+          KoLCharacter.findFamiliar(FamiliarPool.MELODRAMEDARY).loseExperience();
+          Preferences.setBoolean("_entauntaunedToday", true);
+        }
+        break;
+
       case 1420:
         // Cargo Cultist Shorts
         if (ChoiceManager.lastDecision == 1) {
@@ -18924,7 +18933,7 @@ public abstract class ChoiceManager {
         return VillainLairDecorator.Symbology(responseText);
 
       case 1461:
-        // Site Alpha Primary Lab
+        // Hello Knob My Old Friend
         // If you can "Grab the Cheer Core!", do it.
         if (responseText.contains("Grab the Cheer Core!")) {
           return "5";
