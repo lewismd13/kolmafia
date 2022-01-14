@@ -812,10 +812,9 @@ public class DebugDatabase {
     report.println();
     report.println("# Level requirements in " + file + ".txt");
 
-    Object[] keys = map.keySet().toArray();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkConsumableDatum(name, type, text, report);
     }
   }
@@ -908,10 +907,9 @@ public class DebugDatabase {
     report.println("# " + tag + " section of equipment.txt");
     report.println();
 
-    Object[] keys = map.keySet().toArray();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkEquipmentDatum(name, text, report);
     }
   }
@@ -1097,11 +1095,10 @@ public class DebugDatabase {
     report.println("# " + tag + " section of modifiers.txt");
     report.println();
 
-    Object[] keys = map.keySet().toArray();
     int type = imap.getType();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkItemModifierDatum(name, text, type, report, showAll);
     }
   }
@@ -1675,17 +1672,15 @@ public class DebugDatabase {
     DebugDatabase.outfits.put(name, text);
   }
 
-  private static final GenericRequest DESC_OUTFIT_REQUEST = new GenericRequest("desc_outfit.php");
-
   public static final String outfitDescriptionText(final int outfitId) {
     return DebugDatabase.outfitDescriptionText(DebugDatabase.rawOutfitDescriptionText(outfitId));
   }
 
   public static final String readOutfitDescriptionText(final int outfitId) {
-    DebugDatabase.DESC_OUTFIT_REQUEST.clearDataFields();
-    DebugDatabase.DESC_OUTFIT_REQUEST.addFormField("whichoutfit", String.valueOf(outfitId));
-    RequestThread.postRequest(DebugDatabase.DESC_OUTFIT_REQUEST);
-    return DebugDatabase.DESC_OUTFIT_REQUEST.responseText;
+    GenericRequest request = new GenericRequest("desc_outfit.php");
+    request.addFormField("whichoutfit", String.valueOf(outfitId));
+    RequestThread.postRequest(request);
+    return request.responseText;
   }
 
   public static final String rawOutfitDescriptionText(final int outfitId) {
@@ -1728,10 +1723,9 @@ public class DebugDatabase {
     report.println("# " + tag + " section of modifiers.txt");
     report.println();
 
-    Object[] keys = map.keySet().toArray();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkOutfitModifierDatum(name, text, report);
     }
   }
@@ -1896,17 +1890,23 @@ public class DebugDatabase {
     return matcher.find() ? matcher.group(1) : "";
   }
 
-  private static final GenericRequest DESC_EFFECT_REQUEST = new GenericRequest("desc_effect.php");
-
   public static final String effectDescriptionText(final int effectId) {
     return DebugDatabase.effectDescriptionText(DebugDatabase.rawEffectDescriptionText(effectId));
   }
 
+  public static String readEffectDescriptionText(final int effectId) {
+    String descId = EffectDatabase.getDescriptionId(effectId);
+    if (descId == null || descId.equals("")) {
+      return null;
+    }
+    return DebugDatabase.readEffectDescriptionText(descId);
+  }
+
   public static final String readEffectDescriptionText(final String descId) {
-    DebugDatabase.DESC_EFFECT_REQUEST.clearDataFields();
-    DebugDatabase.DESC_EFFECT_REQUEST.addFormField("whicheffect", descId);
-    RequestThread.postRequest(DebugDatabase.DESC_EFFECT_REQUEST);
-    return DebugDatabase.DESC_EFFECT_REQUEST.responseText;
+    GenericRequest request = new GenericRequest("desc_effect.php");
+    request.addFormField("whicheffect", descId);
+    RequestThread.postRequest(request);
+    return request.responseText;
   }
 
   private static String rawEffectDescriptionText(final int effectId) {
@@ -1960,10 +1960,9 @@ public class DebugDatabase {
     report.println("# " + tag + " section of modifiers.txt");
     report.println();
 
-    Object[] keys = map.keySet().toArray();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkEffectModifierDatum(name, text, report);
     }
   }
@@ -2152,18 +2151,16 @@ public class DebugDatabase {
     return matcher.find() ? StringUtilities.parseInt(matcher.group(1)) : 0;
   }
 
-  private static final GenericRequest DESC_SKILL_REQUEST = new GenericRequest("desc_skill.php");
-
   public static final String skillDescriptionText(final int skillId) {
     return DebugDatabase.skillDescriptionText(DebugDatabase.rawSkillDescriptionText(skillId));
   }
 
   public static final String readSkillDescriptionText(final int skillId) {
-    DebugDatabase.DESC_SKILL_REQUEST.clearDataFields();
-    DebugDatabase.DESC_SKILL_REQUEST.addFormField("whichskill", String.valueOf(skillId));
-    DebugDatabase.DESC_SKILL_REQUEST.addFormField("self", "true");
-    RequestThread.postRequest(DebugDatabase.DESC_SKILL_REQUEST);
-    return DebugDatabase.DESC_SKILL_REQUEST.responseText;
+    GenericRequest request = new GenericRequest("desc_skill.php");
+    request.addFormField("whichskill", String.valueOf(skillId));
+    request.addFormField("self", "true");
+    RequestThread.postRequest(request);
+    return request.responseText;
   }
 
   private static String rawSkillDescriptionText(final int skillId) {
@@ -2212,10 +2209,9 @@ public class DebugDatabase {
     report.println("# " + tag + " section of modifiers.txt");
     report.println();
 
-    Object[] keys = map.keySet().toArray();
-    for (Object key : keys) {
-      String name = (String) key;
-      String text = map.get(name);
+    for (Entry<String, String> entry : map.entrySet()) {
+      String name = entry.getKey();
+      String text = entry.getValue();
       DebugDatabase.checkSkillModifierDatum(name, text, report);
     }
   }
