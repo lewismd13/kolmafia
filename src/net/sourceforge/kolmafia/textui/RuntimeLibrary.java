@@ -1490,6 +1490,9 @@ public abstract class RuntimeLibrary {
     params = new Type[] {DataTypes.ITEM_TYPE};
     functions.add(new LibraryFunction("heist", DataTypes.BOOLEAN_TYPE, params));
 
+    params = new Type[] {DataTypes.INT_TYPE, DataTypes.ITEM_TYPE};
+    functions.add(new LibraryFunction("heist", DataTypes.BOOLEAN_TYPE, params));
+
     // Equipment functions.
 
     params = new Type[] {DataTypes.ITEM_TYPE};
@@ -6246,8 +6249,7 @@ public abstract class RuntimeLibrary {
       throw controller.runtimeException("You don't have a Cat Burglar");
     }
     FamiliarData current = KoLCharacter.getFamiliar();
-    RequestThread.postRequest(
-        new FamiliarRequest(KoLCharacter.findFamiliar(FamiliarPool.CAT_BURGLAR)));
+    FamiliarManager.changeFamiliar(FamiliarPool.CAT_BURGLAR, false);
 
     MapValue returnValue = new MapValue(HeistType);
     var heistData = new HeistManager().getHeistTargets();
@@ -6262,22 +6264,26 @@ public abstract class RuntimeLibrary {
       returnValue.aset(DataTypes.makeMonsterValue(monster.id, false), value);
     }
 
-    RequestThread.postRequest(new FamiliarRequest(current));
+    FamiliarManager.changeFamiliar(current);
     return returnValue;
   }
 
   public static Value heist(ScriptRuntime controller, final Value item) {
+    return heist(controller, DataTypes.ONE_VALUE, item);
+  }
+
+  public static Value heist(ScriptRuntime controller, final Value num, final Value item) {
     if (!KoLCharacter.hasFamiliar(FamiliarPool.CAT_BURGLAR)) {
       throw controller.runtimeException("You don't have a Cat Burglar");
     }
     FamiliarData current = KoLCharacter.getFamiliar();
-    RequestThread.postRequest(
-        new FamiliarRequest(KoLCharacter.findFamiliar(FamiliarPool.CAT_BURGLAR)));
+    FamiliarManager.changeFamiliar(FamiliarPool.CAT_BURGLAR, false);
 
+    int count = (int) num.intValue();
     int itemId = (int) item.intValue();
-    var heisted = new HeistManager().heist(itemId);
+    var heisted = new HeistManager().heist(count, itemId);
 
-    RequestThread.postRequest(new FamiliarRequest(current));
+    FamiliarManager.changeFamiliar(current);
     return DataTypes.makeBooleanValue(heisted);
   }
 
