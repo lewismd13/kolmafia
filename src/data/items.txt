@@ -27,7 +27,7 @@
 #	d - discard
 #
 1	seal-clubbing club	868780591	club.gif	weapon, paste, smith	t,d	1
-2	seal tooth	617818041	tooth.gif	message, combat reusable, smith	t,d	1	seal teeth
+2	seal tooth	617818041	tooth.gif	usable, combat reusable, smith	t,d	1	seal teeth
 3	helmet turtle	447433823	turtle.gif	hat, smith	t,d	1
 4	turtle totem	164978098	totem.gif	weapon, smith	t,d	1
 5	pasta spoon	249844320	pastaspoon.gif	weapon, smith	t,d	1
