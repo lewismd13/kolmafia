@@ -1093,7 +1093,7 @@ public class QuestManager {
   private static void handleOilPeakChange(final String responseText) {
     if (responseText.contains("Unimpressed with Pressure")) {
       Preferences.setBoolean("oilPeakLit", true);
-      Preferences.setInteger("oilPeakProgress", 0);
+      Preferences.setFloat("oilPeakProgress", 0);
     }
   }
 
@@ -1115,7 +1115,7 @@ public class QuestManager {
     }
     if (responseText.contains("orcchasm/fire3.gif")) {
       Preferences.setBoolean("oilPeakLit", true);
-      Preferences.setInteger("oilPeakProgress", 0);
+      Preferences.setFloat("oilPeakProgress", 0);
     }
 
     if (Preferences.getBoolean("booPeakLit")
@@ -1393,9 +1393,6 @@ public class QuestManager {
 
     if (responseText.contains("Thanks for the larva, Adventurer. We'll put this to good use.")) {
       ResultProcessor.removeItem(ItemPool.MOSQUITO_LARVA);
-    }
-    if (responseText.contains("dragonbone belt buckle")) {
-      ResultProcessor.removeItem(ItemPool.BONERDAGON_SKULL);
     }
     QuestDatabase.handleCouncilText(responseText);
     if (QuestDatabase.isQuestLaterThan(Quest.MACGUFFIN, QuestDatabase.UNSTARTED)) {
