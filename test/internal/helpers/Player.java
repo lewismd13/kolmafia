@@ -32,26 +32,30 @@ public class Player {
     return cleanups;
   }
 
-  public static Cleanups addItem(String item) {
-    return addItem(item, 1);
+  public static Cleanups addItem(String name) {
+    return addItem(name, 1);
   }
 
-  public static Cleanups addItem(String item, int count) {
+  public static Cleanups addItem(String name, int count) {
+    int itemId = ItemDatabase.getItemId(name, count, false);
+    return addItem(ItemPool.get(itemId, count));
+  }
+
+  public static Cleanups addItem(int itemId) {
+    return addItem(itemId, 1);
+  }
+
+  public static Cleanups addItem(int itemId, int count) {
+    return addItem(ItemPool.get(itemId, count));
+  }
+
+  public static Cleanups addItem(AdventureResult item) {
     var cleanups = new Cleanups();
-    AdventureResult parsed = AdventureResult.tallyItem(item);
-    for (int i = 0; i < count; i++) {
-      AdventureResult.addResultToList(KoLConstants.inventory, parsed);
-      cleanups.add(() -> AdventureResult.removeResultFromList(KoLConstants.inventory, parsed));
-    }
+    AdventureResult.addResultToList(KoLConstants.inventory, item);
+    // Per midglec: "All the cleanups I wrote assume you're reverting back to a reset character"
+    // Therefore, simply remove this item from inventory.
+    cleanups.add(() -> AdventureResult.removeResultFromList(KoLConstants.inventory, item));
     return cleanups;
-  }
-
-  public static void addItem(int itemId) {
-    addItem(itemId, 1);
-  }
-
-  public static void addItem(int itemId, int count) {
-    AdventureResult.addResultToList(KoLConstants.inventory, ItemPool.get(itemId));
   }
 
   public static int countItem(int itemId) {
@@ -157,5 +161,10 @@ public class Player {
     var mocked = mockStatic(HolidayDatabase.class, Mockito.CALLS_REAL_METHODS);
     mocked.when(HolidayDatabase::getDate).thenReturn(cal.getTime());
     return new Cleanups(mocked::close);
+  }
+
+  public static Cleanups usedAbsorbs(int absorbs) {
+    KoLCharacter.setAbsorbs(absorbs);
+    return new Cleanups(() -> usedAbsorbs(0));
   }
 }
