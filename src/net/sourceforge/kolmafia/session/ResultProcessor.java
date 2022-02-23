@@ -3273,6 +3273,29 @@ public class ResultProcessor {
           Preferences.setInteger("cosmicBowlingBallReturnCombats", -1);
         }
         break;
+
+        case ItemPool.PICKLED_GRASSHOPPER:
+        case ItemPool.BOTTLE_OF_ANIS:
+        case ItemPool.NOVELTY_HOT_SAUCE:
+        case ItemPool.ELEMENTAL_SUGARCUBE:
+        case ItemPool.PEPPERMINT_SPRIG:
+        case ItemPool.CLAM_JUICE:
+        case ItemPool.COCKTAIL_MUSHROOM:
+        case ItemPool.GRANOLA_LIQUEUR:
+        case ItemPool.CHERRY_STERNO:
+        case ItemPool.BLACK_ICHOR:
+        case ItemPool.GREGNADIGNE:
+        case ItemPool.CREME_DE_FUGU:
+        case ItemPool.FISH_HEAD:
+        case ItemPool.BABY_OIL_SHOOTER:
+        case ItemPool.LIMEPATCH:
+        case ItemPool.PILE_DIRT:
+        case ItemPool.SLIME_SHOOTER:
+        case ItemPool.IMAGINARY_LEMON:
+        if (adventureResults && KoLCharacter.currentFamiliar.getId() == FamiliarPool.ROBORTENDER) {
+          Preferences.increment("_robortDrops", 1);
+        }
+        break;
     }
 
     // Gaining items can achieve goals.
