@@ -1455,6 +1455,7 @@ user	youRobotRight	0
 user	youRobotScavenged	false
 user	youRobotTop	0
 user	zeppelinProtestors	0
+user	zigguratLianas	0
 user	zombiePoints	0
 user	_absintheDrops	0
 user	_abstractionDropsCrown	0
@@ -1539,6 +1540,7 @@ user	_chocolatesUsed	0
 user	_chronerCrossUsed	false
 user	_chronerTriggerUsed	false
 user	_chronolithActivations	0
+user	_chronolithNextCost	10
 user	_chubbyAndPlumpUsed	false
 user	_circleDrumUsed	false
 user	_clanFortuneBuffUsed	false
@@ -1824,6 +1826,7 @@ user	_mayflySummons	0
 user	_mayoDeviceRented	false
 user	_mayoTankSoaked	false
 user	_meatballMachineUsed	false
+user	_meatifyMatterUsed	false
 user	_mediumSiphons	0
 user	_meteoriteAdesUsed	0
 user	_meteorShowerUses	0
