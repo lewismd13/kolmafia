@@ -1,7 +1,7 @@
 package net.sourceforge.kolmafia;
 
 import java.awt.Taskbar;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -125,7 +125,7 @@ public abstract class KoLCharacter {
 
   // Things which can change over the course of playing
 
-  private static String[] avatar = new String[0];
+  private static List<String> avatar = Collections.emptyList();
   private static AscensionClass ascensionClass = null;
   private static int gender = 0;
   public static int AWOLtattoo = 0;
@@ -430,9 +430,8 @@ public abstract class KoLCharacter {
     KoLConstants.expressionSkills.clear();
     KoLConstants.walkSkills.clear();
     KoLConstants.availableSkills.clear();
-    KoLConstants.availableSkillsMap.clear();
-    KoLConstants.availableCombatSkills.clear();
-    KoLConstants.availableCombatSkillsMap.clear();
+    KoLConstants.availableSkillsSet.clear();
+    KoLConstants.availableCombatSkillsSet.clear();
     KoLConstants.combatSkills.clear();
 
     // All characters get the option to
@@ -486,6 +485,11 @@ public abstract class KoLCharacter {
 
   public static final int getFullnessLimit() {
     if (!KoLCharacter.canEat()) {
+      return 0;
+    }
+
+    if (KoLCharacter.inRobocore()) {
+      // Robots can eat size-0 magical sausages but have no fullness
       return 0;
     }
 
@@ -794,19 +798,18 @@ public abstract class KoLCharacter {
    * @param avatar The avatar for this character
    */
   public static final void setAvatar(final String avatar) {
-    String[] array = new String[] {avatar};
-    KoLCharacter.setAvatar(array);
+    KoLCharacter.setAvatar(Collections.singletonList(avatar));
   }
 
-  public static final void setAvatar(final String[] images) {
+  public static final void setAvatar(final List<String> images) {
     // Only set the avatar if the set of images has changed.
     //
     // Note that we assume that a "set" will do; the images will be overlaid
     // upon each other, rather than being arranged in a specific order.
 
-    if (KoLCharacter.avatar.length == images.length) {
+    if (KoLCharacter.avatar.size() == images.size()) {
       boolean changed = false;
-      Set<String> currentImages = new HashSet<>(Arrays.asList(KoLCharacter.avatar));
+      Set<String> currentImages = new HashSet<>(KoLCharacter.avatar);
       for (String image : images) {
         if (!currentImages.contains(image)) {
           changed = true;
@@ -847,7 +850,7 @@ public abstract class KoLCharacter {
    *
    * @return The avatar for this character
    */
-  public static final String[] getAvatar() {
+  public static final List<String> getAvatar() {
     return KoLCharacter.avatar;
   }
 
@@ -2967,6 +2970,17 @@ public abstract class KoLCharacter {
     FloristRequest.reset();
     RequestThread.postRequest(new FloristRequest());
 
+    // If you have the ItemManagerFrame open, there are four panels which
+    // display food, booze, spleen items, and potions. These enable buttons and
+    // filter what is shown based on character state: whether your character
+    // can eat or drink, whether items are out of standard, and so on.
+    //
+    // All of that is moot, now. Signal the various GUI panels to update.
+    NamedListenerRegistry.fireChange("(food)");
+    NamedListenerRegistry.fireChange("(booze)");
+    NamedListenerRegistry.fireChange("(spleen)");
+    NamedListenerRegistry.fireChange("(potions)");
+
     // Run a user-supplied script
     KoLmafiaCLI.DEFAULT_SHELL.executeLine(Preferences.getString("kingLiberatedScript"));
   }
@@ -3333,7 +3347,7 @@ public abstract class KoLCharacter {
       return false;
     }
 
-    if (KoLCharacter.inNoobcore() || KoLCharacter.inBondcore() || KoLCharacter.inRobocore()) {
+    if (KoLCharacter.inNoobcore() || KoLCharacter.inBondcore()) {
       return false;
     }
 
@@ -3698,14 +3712,14 @@ public abstract class KoLCharacter {
     KoLCharacter.addAvailableSkill(UseSkillRequest.getUnmodifiedInstance(skillId), checkTrendy);
   }
 
-  public static final void addAvailableSkill(final String name) {
+  public static final void addAvailableSkill(final String skillName) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    KoLCharacter.addAvailableSkill(name, false);
+    KoLCharacter.addAvailableSkill(skillName, false);
   }
 
-  public static final void addAvailableSkill(final String name, final boolean checkTrendy) {
+  public static final void addAvailableSkill(final String skillName, final boolean checkTrendy) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    KoLCharacter.addAvailableSkill(UseSkillRequest.getUnmodifiedInstance(name), checkTrendy);
+    KoLCharacter.addAvailableSkill(SkillDatabase.getSkillId(skillName), checkTrendy);
   }
 
   public static final void addAvailableSkill(final UseSkillRequest skill) {
@@ -3717,7 +3731,8 @@ public abstract class KoLCharacter {
       return;
     }
 
-    if (KoLConstants.availableSkillsMap.containsKey(skill)) {
+    int skillId = skill.getSkillId();
+    if (KoLConstants.availableSkillsSet.contains(skillId)) {
       return;
     }
 
@@ -3742,13 +3757,13 @@ public abstract class KoLCharacter {
     }
 
     KoLConstants.availableSkills.add(skill);
-    KoLConstants.availableSkillsMap.put(skill, null);
+    KoLConstants.availableSkillsSet.add(skillId);
     PreferenceListenerRegistry.firePreferenceChanged("(skill)");
 
-    switch (SkillDatabase.getSkillType(skill.getSkillId())) {
+    switch (SkillDatabase.getSkillType(skillId)) {
       case SkillDatabase.PASSIVE:
         {
-          switch (skill.getSkillId()) {
+          switch (skillId) {
             case SkillPool.FLAVOUR_OF_MAGIC:
               // Flavour of Magic gives you access to five other
               // castable skills
@@ -3890,43 +3905,21 @@ public abstract class KoLCharacter {
 
   /** Adds a single skill to the list of skills temporarily possessed by this character. */
   public static final void addAvailableCombatSkill(final int skillId) {
-    KoLCharacter.addAvailableCombatSkill(UseSkillRequest.getUnmodifiedInstance(skillId));
+    KoLConstants.availableCombatSkillsSet.add(skillId);
   }
 
   public static final void addAvailableCombatSkill(final String skillName) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    KoLCharacter.addAvailableCombatSkill(UseSkillRequest.getUnmodifiedInstance(skillName));
+    KoLCharacter.addAvailableCombatSkill(SkillDatabase.getSkillId(skillName));
   }
 
-  private static void addAvailableCombatSkill(final UseSkillRequest skill) {
-    if (skill == null) {
-      return;
-    }
-
-    if (KoLConstants.availableCombatSkillsMap.containsKey(skill)) {
-      return;
-    }
-
-    KoLConstants.availableCombatSkills.add(skill);
-    KoLConstants.availableCombatSkillsMap.put(skill, null);
+  public static final void removeAvailableCombatSkill(final int skillId) {
+    KoLConstants.availableCombatSkillsSet.remove(skillId);
   }
 
-  public static final void removeAvailableCombatSkill(final String name) {
+  public static final void removeAvailableCombatSkill(final String skillName) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    KoLCharacter.removeAvailableCombatSkill(UseSkillRequest.getUnmodifiedInstance(name));
-  }
-
-  private static void removeAvailableCombatSkill(final UseSkillRequest skill) {
-    if (skill == null) {
-      return;
-    }
-
-    if (!KoLConstants.availableCombatSkillsMap.containsKey(skill)) {
-      return;
-    }
-
-    KoLConstants.availableCombatSkills.remove(skill);
-    KoLConstants.availableCombatSkillsMap.remove(skill);
+    KoLCharacter.removeAvailableCombatSkill(SkillDatabase.getSkillId(skillName));
   }
 
   private static void addCombatSkill(final String name) {
@@ -3946,9 +3939,8 @@ public abstract class KoLCharacter {
     }
 
     UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance(skillId);
-
     KoLConstants.availableSkills.remove(skill);
-    KoLConstants.availableSkillsMap.remove(skill);
+    KoLConstants.availableSkillsSet.remove(skillId);
     KoLConstants.usableSkills.remove(skill);
     KoLConstants.summoningSkills.remove(skill);
     KoLConstants.usableSkills.remove(skill);
@@ -4071,54 +4063,19 @@ public abstract class KoLCharacter {
     return KoLCharacter.hasSkill("Amphibian Sympathy");
   }
 
-  /** Utility method which looks up whether or not the character has a skill of the given name. */
+  /** Utility methods which looks up whether or not the character has a particular skill. */
   public static final boolean hasSkill(final int skillId) {
-    UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance(skillId);
-    return KoLCharacter.hasSkill(skill);
+    return KoLConstants.availableSkillsSet.contains(skillId);
   }
 
   public static final boolean hasSkill(final String skillName) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance(skillName);
-    return KoLCharacter.hasSkill(skill);
+    int skillId = SkillDatabase.getSkillId(skillName);
+    return KoLCharacter.hasSkill(skillId);
   }
 
-  public static final boolean hasSkill(final String skillName, final List<UseSkillRequest> list) {
-    // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
-    UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance(skillName);
-    return KoLCharacter.hasSkill(skill, list);
-  }
-
-  public static final boolean hasSkill(final UseSkillRequest skill) {
-    return KoLCharacter.hasSkill(skill, KoLConstants.availableSkills);
-  }
-
-  public static final boolean hasSkill(
-      final UseSkillRequest skill, final List<UseSkillRequest> list) {
-    if (skill == null) {
-      return false;
-    }
-
-    if (list == KoLConstants.availableSkills) {
-      return KoLConstants.availableSkillsMap.containsKey(skill);
-    }
-    if (list == KoLConstants.availableCombatSkills) {
-      return KoLConstants.availableCombatSkillsMap.containsKey(skill);
-    }
-    return list.contains(skill);
-  }
-
-  public static final boolean availableCombatSkill(final int skillId) {
-    UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance(skillId);
-    return KoLCharacter.availableCombatSkill(skill);
-  }
-
-  public static final boolean availableCombatSkill(final UseSkillRequest skill) {
-    if (skill == null) {
-      return false;
-    }
-
-    return KoLConstants.availableCombatSkillsMap.containsKey(skill);
+  public static final boolean hasCombatSkill(final int skillId) {
+    return KoLConstants.availableCombatSkillsSet.contains(skillId);
   }
 
   /**
@@ -4449,7 +4406,13 @@ public abstract class KoLCharacter {
       EquipmentManager.updateEquipmentList(EquipmentManager.FAMILIAR);
     }
 
+    if (KoLCharacter.currentFamiliar != FamiliarData.NO_FAMILIAR) {
+      KoLCharacter.currentFamiliar.deactivate();
+    }
     KoLCharacter.currentFamiliar = KoLCharacter.addFamiliar(familiar);
+    if (KoLCharacter.currentFamiliar != FamiliarData.NO_FAMILIAR) {
+      KoLCharacter.currentFamiliar.activate();
+    }
 
     if (KoLCharacter.currentFamiliar.equals(KoLCharacter.currentEnthroned)) {
       KoLCharacter.currentEnthroned = FamiliarData.NO_FAMILIAR;
@@ -4645,14 +4608,16 @@ public abstract class KoLCharacter {
 
     if (thrall == PastaThrallData.NO_THRALL) {
       UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance("Dismiss Pasta Thrall");
+      int skillId = skill.getSkillId();
       KoLConstants.availableSkills.remove(skill);
-      KoLConstants.availableSkillsMap.remove(skill);
+      KoLConstants.availableSkillsSet.remove(skillId);
       KoLConstants.usableSkills.remove(skill);
       KoLConstants.summoningSkills.remove(skill);
     } else if (KoLCharacter.currentPastaThrall == PastaThrallData.NO_THRALL) {
       UseSkillRequest skill = UseSkillRequest.getUnmodifiedInstance("Dismiss Pasta Thrall");
+      int skillId = skill.getSkillId();
       KoLConstants.availableSkills.add(skill);
-      KoLConstants.availableSkillsMap.put(skill, null);
+      KoLConstants.availableSkillsSet.add(skillId);
       KoLConstants.usableSkills.add(skill);
       LockableListFactory.sort(KoLConstants.usableSkills);
       KoLConstants.summoningSkills.add(skill);
