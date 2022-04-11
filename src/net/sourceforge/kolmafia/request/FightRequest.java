@@ -3112,6 +3112,51 @@ public class FightRequest extends GenericRequest {
             Preferences.increment("_turkeyMoxie");
           }
         }
+
+        case FamiliarPool.ROBORTENDER: {
+          String[] robortDropMessages = new String[] {"Allow Me To Recommend A Local Specialty",
+          "Perhaps You Would Enjoy A Drink Relevant To The Current Circumstances",
+          "This Reminds Me Of A Classic Recipe",
+          "Why Not Celebrate The Occasion With A Drink",
+          "Fighting Works Up A Real Thirst",
+          "Freshen Your Drink, Sir or Madam",
+          "Have One For The Road",
+          "I Hope I Am Not Enabling Any Addictions You Might Have",
+          "It's Always Happy Hour Somewhere",
+          "practices a complex cocktail juggling move",
+          "gives you a thumbs-up with a special thumb attachment",
+          "Have One On The House",
+          "Please Enjoy A Complimentary Snack",
+          "How About This Weather We're Having, Eh"};
+          
+          for (String s : robortDropMessages) { 
+            if (!responseText.contains(s)) 
+              continue;  
+            Preferences.increment("_robortDrops", 1); 
+              break; 
+          }
+/*
+            if (responseText.contains("Allow Me To Recommend A Local Specialty")
+                    || responseText.contains("Perhaps You Would Enjoy A Drink Relevant To The Current Circumstances")
+                    || responseText.contains("This Reminds Me Of A Classic Recipe")
+                    || responseText.contains("Why Not Celebrate The Occasion With A Drink")
+                    || responseText.contains(
+                    "Why Not Try A Popular Local Recipe")
+                    || responseText.contains("Fighting Works Up A Real Thirst")
+                    || responseText.contains("Freshen Your Drink, Sir or Madam")
+                    || responseText.contains("Have One For The Road")
+                    || responseText.contains("I Hope I Am Not Enabling Any Addictions You Might Have")
+                    || responseText.contains("It's Always Happy Hour Somewhere")
+                    || responseText.contains("practices a complex cocktail juggling move")
+                    || responseText.contains("gives you a thumbs-up with a special thumb attachment")
+                    || responseText.contains("Have One On The House")
+                    || responseText.contains("Please Enjoy A Complimentary Snack")
+                    || responseText.contains("How About This Weather We're Having, Eh")
+
+            ) {
+                Preferences.increment("_robortDrops", 1);
+            }*/
+        }
     }
 
     int blindIndex = responseText.indexOf("... something.</div>");
