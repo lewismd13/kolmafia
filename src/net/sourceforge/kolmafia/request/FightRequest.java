@@ -3118,6 +3118,7 @@ public class FightRequest extends GenericRequest {
           "Perhaps You Would Enjoy A Drink Relevant To The Current Circumstances",
           "This Reminds Me Of A Classic Recipe",
           "Why Not Celebrate The Occasion With A Drink",
+          "Why Not Try A Popular Local Recipe",
           "Fighting Works Up A Real Thirst",
           "Freshen Your Drink, Sir or Madam",
           "Have One For The Road",
