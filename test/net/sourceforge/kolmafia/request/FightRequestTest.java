@@ -521,12 +521,23 @@ public class FightRequestTest {
         new FamiliarData(FamiliarPool.ROBORTENDER, "Gogarth", 1, EquipmentRequest.UNEQUIP);
     KoLCharacter.setFamiliar(fam);
 
+    // String html = loadHTMLResponse("request/test_fight_robort_drops_1.html");
+    Preferences.setInteger("_robortDrops", 0);
+    parseCombatData("request/test_fight_robort_drops_1.html");
+    assertEquals(1, Preferences.getInteger("_robortDrops"));
+
+    // html = loadHTMLResponse("request/test_fight_robort_drops_2.html");
+    Preferences.setInteger("_robortDrops", 0);
+    parseCombatData("request/test_fight_robort_drops_2.html");
+    assertEquals(0, Preferences.getInteger("_robortDrops"));
+
+    /*
     Preferences.setInteger("_robortDrops", 0);
     parseCombatData("request/test_fight_robort_drops_1.html");
     assertEquals(1, Preferences.getInteger("_robortDrops"));
 
     Preferences.setInteger("_robortDrops", 0);
     parseCombatData("request/test_fight_robort_drops_2.html");
-    assertEquals(0, Preferences.getInteger("_robortDrops"));
+    assertEquals(0, Preferences.getInteger("_robortDrops")); */
   }
 }
