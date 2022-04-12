@@ -3136,27 +3136,6 @@ public class FightRequest extends GenericRequest {
             Preferences.increment("_robortDrops", 1); 
               break; 
           }
-/*
-            if (responseText.contains("Allow Me To Recommend A Local Specialty")
-                    || responseText.contains("Perhaps You Would Enjoy A Drink Relevant To The Current Circumstances")
-                    || responseText.contains("This Reminds Me Of A Classic Recipe")
-                    || responseText.contains("Why Not Celebrate The Occasion With A Drink")
-                    || responseText.contains(
-                    "Why Not Try A Popular Local Recipe")
-                    || responseText.contains("Fighting Works Up A Real Thirst")
-                    || responseText.contains("Freshen Your Drink, Sir or Madam")
-                    || responseText.contains("Have One For The Road")
-                    || responseText.contains("I Hope I Am Not Enabling Any Addictions You Might Have")
-                    || responseText.contains("It's Always Happy Hour Somewhere")
-                    || responseText.contains("practices a complex cocktail juggling move")
-                    || responseText.contains("gives you a thumbs-up with a special thumb attachment")
-                    || responseText.contains("Have One On The House")
-                    || responseText.contains("Please Enjoy A Complimentary Snack")
-                    || responseText.contains("How About This Weather We're Having, Eh")
-
-            ) {
-                Preferences.increment("_robortDrops", 1);
-            }*/
         }
     }
 
