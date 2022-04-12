@@ -528,6 +528,5 @@ public class FightRequestTest {
     Preferences.setInteger("_robortDrops", 0);
     parseCombatData("request/test_fight_robort_drops_2.html");
     assertEquals(0, Preferences.getInteger("_robortDrops"));
-
   }
 }
