@@ -520,11 +520,13 @@ public class FightRequestTest {
     FamiliarData fam = new FamiliarData(FamiliarPool.ROBORTENDER);
     KoLCharacter.setFamiliar(fam);
 
-    Preferences.setInteger("_robortDrops", 0);
+    assertEquals(0, Preferences.getInteger("_robortDrops"));
     parseCombatData("request/test_fight_robort_drops_1.html");
     assertEquals(1, Preferences.getInteger("_robortDrops"));
 
     Preferences.setInteger("_robortDrops", 0);
+
+    assertEquals(0, Preferences.getInteger("_robortDrops"));
     parseCombatData("request/test_fight_robort_drops_2.html");
     assertEquals(0, Preferences.getInteger("_robortDrops"));
   }
