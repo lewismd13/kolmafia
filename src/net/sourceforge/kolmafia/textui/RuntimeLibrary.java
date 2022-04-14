@@ -2103,6 +2103,13 @@ public abstract class RuntimeLibrary {
     params = new Type[] {};
     functions.add(
         new LibraryFunction(
+            "get_permed_skills",
+            new AggregateType(DataTypes.BOOLEAN_TYPE, DataTypes.SKILL_TYPE),
+            params));
+
+    params = new Type[] {};
+    functions.add(
+        new LibraryFunction(
             "get_monster_mapping",
             new AggregateType(DataTypes.MONSTER_TYPE, DataTypes.MONSTER_TYPE),
             params));
@@ -6408,7 +6415,7 @@ public abstract class RuntimeLibrary {
   }
 
   public static Value equipped_item(ScriptRuntime controller, final Value slot) {
-    return DataTypes.makeItemValue(EquipmentManager.getEquipment((int) slot.intValue()).getName());
+    return DataTypes.makeItemValue(EquipmentManager.getEquipment((int) slot.intValue()));
   }
 
   public static Value have_equipped(ScriptRuntime controller, final Value item) {
@@ -8118,6 +8125,20 @@ public abstract class RuntimeLibrary {
       value.aset(DataTypes.makeMonsterValue(monster), DataTypes.makeBooleanValue(!fought));
     }
 
+    return value;
+  }
+
+  public static Value get_permed_skills(ScriptRuntime controller) {
+    AggregateType type = new AggregateType(DataTypes.BOOLEAN_TYPE, DataTypes.SKILL_TYPE);
+    MapValue value = new MapValue(type);
+
+    for (var permedSkill : KoLConstants.permedSkills) {
+      var skill = DataTypes.makeSkillValue(permedSkill.getSkillId(), true);
+      var hardcore =
+          DataTypes.makeBooleanValue(
+              KoLConstants.hardcorePermedSkills.contains(permedSkill.getSkillId()));
+      value.aset(skill, hardcore);
+    }
     return value;
   }
 
