@@ -387,7 +387,7 @@ public class FightRequestTest {
   }
 
   @Test
-  public void canTrackDramaderyActions() throws IOException {
+  public void canTrackDramederyActions() throws IOException {
     FamiliarData fam =
         new FamiliarData(FamiliarPool.MELODRAMEDARY, "Gogarth", 1, EquipmentRequest.UNEQUIP);
     KoLCharacter.setFamiliar(fam);
@@ -398,10 +398,17 @@ public class FightRequestTest {
     Preferences.setInteger("camelSpit", 60);
     FightRequest.updateCombatData(null, null, html);
     assertEquals(63, Preferences.getInteger("camelSpit"));
+
+    html = loadHTMLResponse("request/test_fight_drama_spit_1.html");
+    FightRequest.registerRequest(true, "fight.php?action=skill&whichskill=7340");
+    FightRequest.currentRound = 1;
+    Preferences.setInteger("camelSpit", 1000);
+    FightRequest.updateCombatData(null, null, html);
+    assertEquals(0, Preferences.getInteger("camelSpit"));
   }
 
   @Test
-  public void canTrackDronesWithDramadery() throws IOException {
+  public void canTrackDronesWithDramedery() throws IOException {
     FamiliarData fam = new FamiliarData(FamiliarPool.MELODRAMEDARY);
     KoLCharacter.setFamiliar(fam);
 
@@ -505,5 +512,22 @@ public class FightRequestTest {
     html = loadHTMLResponse("request/test_fight_bowling_ball_5.html");
     FightRequest.parseAvailableCombatSkills(html);
     assertTrue(KoLCharacter.hasCombatSkill(SkillPool.BOWL_STRAIGHT_UP));
+  }
+
+  // Robort drop tracking preference tests
+  @Test
+  public void canTrackRoboDrops() throws IOException {
+    FamiliarData fam = new FamiliarData(FamiliarPool.ROBORTENDER);
+    KoLCharacter.setFamiliar(fam);
+
+    assertEquals(0, Preferences.getInteger("_roboDrops"));
+    parseCombatData("request/test_fight_robort_drops_1.html");
+    assertEquals(1, Preferences.getInteger("_roboDrops"));
+
+    Preferences.setInteger("_roboDrops", 0);
+
+    assertEquals(0, Preferences.getInteger("_roboDrops"));
+    parseCombatData("request/test_fight_robort_drops_2.html");
+    assertEquals(0, Preferences.getInteger("_roboDrops"));
   }
 }
