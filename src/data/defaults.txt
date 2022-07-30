@@ -48,6 +48,8 @@ global	externalEditor
 global	fixedThreadPoolSize	0
 global	gapProtection	false
 global	getBreakfast
+global	gitInstallDependencies	true
+global	gitShowCommitMessages	false
 global	gitUpdateOnLogin	false
 global	greenScreenProtection	false
 global	guiUsesOneWindow	false
