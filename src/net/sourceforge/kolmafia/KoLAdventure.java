@@ -1,5 +1,6 @@
 package net.sourceforge.kolmafia;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +31,7 @@ import net.sourceforge.kolmafia.request.BasementRequest;
 import net.sourceforge.kolmafia.request.ClanRumpusRequest;
 import net.sourceforge.kolmafia.request.DwarfFactoryRequest;
 import net.sourceforge.kolmafia.request.EquipmentRequest;
+import net.sourceforge.kolmafia.request.FamiliarRequest;
 import net.sourceforge.kolmafia.request.FightRequest;
 import net.sourceforge.kolmafia.request.GenericRequest;
 import net.sourceforge.kolmafia.request.PlaceRequest;
@@ -381,6 +383,12 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
   private static final AdventureResult TRANSPONDER = ItemPool.get(ItemPool.TRANSPORTER_TRANSPONDER);
   private static final AdventureResult PIRATE_FLEDGES = ItemPool.get(ItemPool.PIRATE_FLEDGES);
   private static final AdventureResult DRIP_HARNESS = ItemPool.get(ItemPool.DRIP_HARNESS, 1);
+  private static final AdventureResult FANTASY_REALM_GEM = ItemPool.get(ItemPool.FANTASY_REALM_GEM);
+  private static final AdventureResult BONE_WITH_A_PRICE_TAG =
+      ItemPool.get(ItemPool.BONE_WITH_A_PRICE_TAG);
+  private static final AdventureResult BOOZE_MAP = ItemPool.get(ItemPool.BOOZE_MAP);
+  private static final AdventureResult HYPNOTIC_BREADCRUMBS =
+      ItemPool.get(ItemPool.HYPNOTIC_BREADCRUMBS);
 
   private static final AdventureResult PERFUME = EffectPool.get(EffectPool.KNOB_GOBLIN_PERFUME, 1);
   private static final AdventureResult TROPICAL_CONTACT_HIGH =
@@ -393,6 +401,12 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
   private static final AdventureResult FORM_OF_BIRD = EffectPool.get(EffectPool.FORM_OF_BIRD);
   private static final AdventureResult ABSINTHE_MINDED = EffectPool.get(EffectPool.ABSINTHE);
   private static final AdventureResult TRANSPONDENT = EffectPool.get(EffectPool.TRANSPONDENT);
+  private static final AdventureResult FILTHWORM_LARVA_STENCH =
+      EffectPool.get(EffectPool.FILTHWORM_LARVA_STENCH);
+  private static final AdventureResult FILTHWORM_DRONE_STENCH =
+      EffectPool.get(EffectPool.FILTHWORM_DRONE_STENCH);
+  private static final AdventureResult FILTHWORM_GUARD_STENCH =
+      EffectPool.get(EffectPool.FILTHWORM_GUARD_STENCH);
 
   private static final Set<String> antiqueMapZones = new HashSet<>();
   private static final Set<String> psychosesZones = new HashSet<>();
@@ -541,9 +555,10 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
     if (this.zone.equals("Town")) {
       return switch (this.adventureNumber) {
         case AdventurePool.SLEAZY_BACK_ALLEY -> true;
-        case AdventurePool.SKELETON_STORE -> QuestDatabase.isQuestStarted(Quest.MEATSMITH);
-        case AdventurePool.MADNESS_BAKERY -> QuestDatabase.isQuestStarted(Quest.ARMORER);
-        case AdventurePool.OVERGROWN_LOT -> QuestDatabase.isQuestStarted(Quest.DOC);
+          // We can start the three market quests, if necessary
+        case AdventurePool.SKELETON_STORE -> true;
+        case AdventurePool.MADNESS_BAKERY -> true;
+        case AdventurePool.OVERGROWN_LOT -> true;
           // Shen is available once you've read the diary and been told to talk to him.
         case AdventurePool.COPPERHEAD_CLUB -> QuestDatabase.isQuestStarted(Quest.SHEN);
           // Only one of the four Lair locations is in Town; two are in the
@@ -868,6 +883,7 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       if (!QuestDatabase.isQuestStarted(Quest.PYRAMID)) {
         return false;
       }
+
       return switch (this.adventureNumber) {
         case AdventurePool.UPPER_CHAMBER -> true;
         case AdventurePool.MIDDLE_CHAMBER -> Preferences.getBoolean("middleChamberUnlock");
@@ -959,14 +975,26 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       if (!QuestDatabase.isQuestStep(Quest.ISLAND_WAR, "step1")) {
         return false;
       }
-      // The Hatching Chamber
-      // The Feeding Chamber
-      // The Royal Guard Chamber
-      // The Filthworm Queen's Chamber
 
-      // *** validate:
-      // - done when Filthworm Queen is slain
-      return true;
+      // Once Filthworm Queen is defeated none of the zones can be accessed
+      if (InventoryManager.hasItem(ItemPool.FILTHWORM_QUEEN_HEART)
+          || !Preferences.getString("sidequestOrchardCompleted").equals("none")) {
+        return false;
+      }
+
+      return switch (this.adventureNumber) {
+        case AdventurePool.FILTHWORM_HATCHING_CHAMBER -> true;
+        case AdventurePool.FILTHWORM_FEEDING_CHAMBER -> KoLConstants.activeEffects.contains(
+                FILTHWORM_LARVA_STENCH)
+            || InventoryManager.hasItem(ItemPool.FILTHWORM_HATCHLING_GLAND);
+        case AdventurePool.FILTHWORM_GUARDS_CHAMBER -> KoLConstants.activeEffects.contains(
+                FILTHWORM_DRONE_STENCH)
+            || InventoryManager.hasItem(ItemPool.FILTHWORM_DRONE_GLAND);
+        case AdventurePool.FILTHWORM_QUEENS_CHAMBER -> KoLConstants.activeEffects.contains(
+                FILTHWORM_GUARD_STENCH)
+            || InventoryManager.hasItem(ItemPool.FILTHWORM_GUARD_GLAND);
+        default -> false;
+      };
     }
 
     if (this.zone.equals("Junkyard")) {
@@ -1134,6 +1162,7 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
 
     if (this.zone.equals("Dungeon")) {
       return switch (this.adventureNumber) {
+        case AdventurePool.LIMERICK_DUNGEON -> KoLCharacter.getBaseMainstat() >= 19;
           // The Enormous Greater-Than Sign is available if your base
           // mainstate is at least 45 and you have not yet unlocked
           // the Dungeon of Doom
@@ -1464,8 +1493,11 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       if (KoLCharacter.isKingdomOfExploathing()) {
         return false;
       }
-      // *** You have limited turns available per day.
-      return Preferences.getBoolean("spacegateAlways") || Preferences.getBoolean("_spacegateToday");
+
+      return (Preferences.getBoolean("spacegateAlways")
+              || Preferences.getBoolean("_spacegateToday"))
+          && !Preferences.getString("_spacegateCoordinates").isBlank()
+          && Preferences.getInteger("_spacegateTurnsLeft") > 0;
     }
 
     if (this.zone.equals("Gingerbread City")) {
@@ -1475,8 +1507,13 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
     }
 
     if (this.zone.equals("FantasyRealm")) {
-      // *** You have limited turns available per day.
-      return Preferences.getBoolean("frAlways") || Preferences.getBoolean("_frToday");
+      if (!Preferences.getBoolean("frAlways") && !Preferences.getBoolean("_frToday")) {
+        return false;
+      }
+
+      if (Preferences.getInteger("_frHoursLeft") < 1) return false;
+
+      return (Preferences.getString("_frAreasUnlocked").contains(this.adventureName));
     }
 
     if (this.zone.startsWith("PirateRealm")) {
@@ -1802,6 +1839,21 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       return true;
     }
 
+    if (this.zone.equals("Rabbit Hole")) {
+      if (!KoLConstants.activeEffects.contains(DOWN_THE_RABBIT_HOLE)) {
+        AdventureResult item = AdventureDatabase.zoneGeneratingItem(this.zone);
+
+        if (!InventoryManager.retrieveItem(item)) {
+          // This shouldn't fail as it is guaranteed in canAdventure()
+          return false;
+        }
+
+        RequestThread.postRequest(UseItemRequest.getInstance(item));
+      }
+
+      return true;
+    }
+
     if (this.zone.equals("The Drip")) {
       if (!InventoryManager.hasItem(DRIP_HARNESS)) {
         KoLmafia.updateDisplay(MafiaState.ERROR, "You need a Drip harness to go there");
@@ -1816,42 +1868,134 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
       return true;
     }
 
+    if (this.zone.equals("FantasyRealm")) {
+      if (!InventoryManager.hasItem(FANTASY_REALM_GEM)) {
+        KoLmafia.updateDisplay(MafiaState.ERROR, "You need a FantasyRealm G. E. M. to go there");
+        return false;
+      }
+
+      // Must have FantasyRealm GEM equipped
+      if (!KoLCharacter.hasEquipped(FANTASY_REALM_GEM)) {
+        RequestThread.postRequest(new EquipmentRequest(FANTASY_REALM_GEM));
+      }
+
+      // Cannot bring a familiar
+      if (KoLCharacter.getFamiliar() != FamiliarData.NO_FAMILIAR) {
+        RequestThread.postRequest(new FamiliarRequest(null));
+      }
+
+      return true;
+    }
+
+    if (this.zone.equals("Orchard")) {
+      var item =
+          switch (this.adventureNumber) {
+            case AdventurePool.FILTHWORM_FEEDING_CHAMBER -> KoLConstants.activeEffects.contains(
+                    FILTHWORM_LARVA_STENCH)
+                ? null
+                : ItemPool.FILTHWORM_HATCHLING_GLAND;
+            case AdventurePool.FILTHWORM_GUARDS_CHAMBER -> KoLConstants.activeEffects.contains(
+                    FILTHWORM_DRONE_STENCH)
+                ? null
+                : ItemPool.FILTHWORM_DRONE_GLAND;
+            case AdventurePool.FILTHWORM_QUEENS_CHAMBER -> KoLConstants.activeEffects.contains(
+                    FILTHWORM_GUARD_STENCH)
+                ? null
+                : ItemPool.FILTHWORM_GUARD_GLAND;
+            default -> null;
+          };
+
+      if (item != null) {
+        if (!InventoryManager.hasItem(item)) {
+          return false;
+        }
+
+        RequestThread.postRequest(UseItemRequest.getInstance(item));
+      }
+
+      return true;
+    }
+
+    if (this.adventureNumber == AdventurePool.SKELETON_STORE) {
+      if (Preferences.getBoolean("skeletonStoreAvailable")
+          || QuestDatabase.isQuestStarted(Quest.MEATSMITH)) {
+        return true;
+      }
+
+      // If we have a bone with a price tag on it, use it
+      if (InventoryManager.hasItem(BONE_WITH_A_PRICE_TAG)) {
+        RequestThread.postRequest(UseItemRequest.getInstance(BONE_WITH_A_PRICE_TAG));
+      } else {
+        // Otherwise, visit the Meatsmith and start the quest.
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=meatsmith"));
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=meatsmith&action=talk"));
+        RequestThread.postRequest(new GenericRequest("choice.php?whichchoice=1059&option=1"));
+      }
+
+      return Preferences.getBoolean("skeletonStoreAvailable");
+    }
+
+    if (this.adventureNumber == AdventurePool.MADNESS_BAKERY) {
+      if (Preferences.getBoolean("madnessBakeryAvailable")
+          || QuestDatabase.isQuestStarted(Quest.ARMORER)) {
+        return true;
+      }
+
+      // If we have hypnotic breadcrumbs on it, use it
+      if (InventoryManager.hasItem(HYPNOTIC_BREADCRUMBS)) {
+        RequestThread.postRequest(UseItemRequest.getInstance(HYPNOTIC_BREADCRUMBS));
+      } else {
+        // Otherwise, visit the Armorer and start the quest.
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=armory"));
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=armory&action=talk"));
+        RequestThread.postRequest(new GenericRequest("choice.php?whichchoice=1065&option=1"));
+      }
+
+      return Preferences.getBoolean("madnessBakeryAvailable");
+    }
+
+    if (this.adventureNumber == AdventurePool.OVERGROWN_LOT) {
+      if (Preferences.getBoolean("overgrownLotAvailable")
+          || QuestDatabase.isQuestStarted(Quest.DOC)) {
+        return true;
+      }
+
+      // If we have a map to a hidden booze cache on it, use it
+      if (InventoryManager.hasItem(BOOZE_MAP)) {
+        RequestThread.postRequest(UseItemRequest.getInstance(BOOZE_MAP));
+      } else {
+        // Otherwise, visit Doc Galaktik and start the quest.
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=doc"));
+        RequestThread.postRequest(new GenericRequest("shop.php?whichshop=doc&action=talk"));
+        RequestThread.postRequest(new GenericRequest("choice.php?whichchoice=1064&option=1"));
+      }
+
+      return Preferences.getBoolean("overgrownLotAvailable");
+    }
+
     return true;
   }
 
+  private int getFirstAvailableOutfitId(int... ids) {
+    return Arrays.stream(ids).filter(EquipmentManager::hasOutfit).findFirst().orElse(0);
+  }
+
   public int getOutfitId() {
-    switch (this.adventureNumber) {
-      case AdventurePool.FRAT_HOUSE_DISGUISED:
+    return switch (this.adventureNumber) {
         // Can be either FRAT_OUTFIT or WAR_FRAT_OUTFIT
-        return EquipmentManager.hasOutfit(OutfitPool.WAR_FRAT_OUTFIT)
-            ? OutfitPool.WAR_FRAT_OUTFIT
-            : EquipmentManager.hasOutfit(OutfitPool.FRAT_OUTFIT) ? OutfitPool.FRAT_OUTFIT : 0;
-      case AdventurePool.WARTIME_FRAT_HOUSE_DISGUISED:
+      case AdventurePool.FRAT_HOUSE_DISGUISED,
+          AdventurePool.WARTIME_HIPPY_CAMP_DISGUISED -> getFirstAvailableOutfitId(
+          OutfitPool.WAR_FRAT_OUTFIT, OutfitPool.FRAT_OUTFIT);
         // Can be either HIPPY_OUTFIT or WAR_HIPPY_OUTFIT
-        return EquipmentManager.hasOutfit(OutfitPool.WAR_HIPPY_OUTFIT)
-            ? OutfitPool.WAR_HIPPY_OUTFIT
-            : EquipmentManager.hasOutfit(OutfitPool.HIPPY_OUTFIT) ? OutfitPool.HIPPY_OUTFIT : 0;
-      case AdventurePool.HIPPY_CAMP_DISGUISED:
-        // Can be either HIPPY_OUTFIT or WAR_HIPPY_OUTFIT
-        return EquipmentManager.hasOutfit(OutfitPool.WAR_HIPPY_OUTFIT)
-            ? OutfitPool.WAR_HIPPY_OUTFIT
-            : EquipmentManager.hasOutfit(OutfitPool.HIPPY_OUTFIT) ? OutfitPool.HIPPY_OUTFIT : 0;
-      case AdventurePool.WARTIME_HIPPY_CAMP_DISGUISED:
-        // Can be either FRAT_OUTFIT or WAR_FRAT_OUTFIT
-        return EquipmentManager.hasOutfit(OutfitPool.WAR_FRAT_OUTFIT)
-            ? OutfitPool.WAR_FRAT_OUTFIT
-            : EquipmentManager.hasOutfit(OutfitPool.FRAT_OUTFIT) ? OutfitPool.FRAT_OUTFIT : 0;
-      case AdventurePool.CLOACA_BATTLEFIELD:
-        return OutfitPool.CLOACA_UNIFORM;
-      case AdventurePool.DYSPEPSI_BATTLEFIELD:
-        return OutfitPool.DYSPEPSI_UNIFORM;
-      case AdventurePool.FRAT_UNIFORM_BATTLEFIELD:
-        return OutfitPool.WAR_FRAT_OUTFIT;
-      case AdventurePool.HIPPY_UNIFORM_BATTLEFIELD:
-        return OutfitPool.WAR_HIPPY_OUTFIT;
-      default:
-        return 0;
-    }
+      case AdventurePool.WARTIME_FRAT_HOUSE_DISGUISED,
+          AdventurePool.HIPPY_CAMP_DISGUISED -> getFirstAvailableOutfitId(
+          OutfitPool.WAR_HIPPY_OUTFIT, OutfitPool.HIPPY_OUTFIT);
+      case AdventurePool.CLOACA_BATTLEFIELD -> OutfitPool.CLOACA_UNIFORM;
+      case AdventurePool.DYSPEPSI_BATTLEFIELD -> OutfitPool.DYSPEPSI_UNIFORM;
+      case AdventurePool.FRAT_UNIFORM_BATTLEFIELD -> OutfitPool.WAR_FRAT_OUTFIT;
+      case AdventurePool.HIPPY_UNIFORM_BATTLEFIELD -> OutfitPool.WAR_HIPPY_OUTFIT;
+      default -> 0;
+    };
   }
 
   /**
