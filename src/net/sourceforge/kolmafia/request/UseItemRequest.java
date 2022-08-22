@@ -950,7 +950,14 @@ public class UseItemRequest extends GenericRequest {
       case ItemPool.MACGUFFIN_DIARY:
       case ItemPool.ED_DIARY:
         {
-          new UpdateSuppressedRequest("diary.php?textversion=1").run();
+          var request =
+              new UpdateSuppressedRequest("diary.php?textversion=1") {
+                @Override
+                public boolean hasResult(String location) {
+                  return false;
+                }
+              };
+          request.run();
           KoLmafia.updateDisplay("Your father's diary has been read.");
           return;
         }
@@ -958,18 +965,16 @@ public class UseItemRequest extends GenericRequest {
       case ItemPool.VOLCANO_MAP:
         {
           var request =
-              new UpdateSuppressedRequest("inv_use.php?which=3&whichitem=3291&pwd") {
-                protected boolean shouldFollowRedirect() {
-                  return true;
-                }
-
+              new UpdateSuppressedRequest(
+                  "inv_use.php?which=3&whichitem=" + ItemPool.VOLCANO_MAP + "&pwd") {
                 @Override
                 public boolean hasResult(String location) {
                   return false;
                 }
               };
           request.run();
-          // This will redirect to volcanoisland.php
+          // This redirects to inventory.php?which=3&action=message (first time)
+          // or volcanoisland.php (subsequent times)
           KoLmafia.updateDisplay("The secret tropical island volcano lair map has been read.");
           return;
         }
@@ -2377,19 +2382,9 @@ public class UseItemRequest extends GenericRequest {
           return;
         }
 
-        ResultProcessor.processItem(ItemPool.SPOOKY_SAPLING, -1);
-        ResultProcessor.processItem(ItemPool.SPOOKY_FERTILIZER, -1);
-
-        QuestDatabase.setQuestProgress(Quest.TEMPLE, QuestDatabase.FINISHED);
-        Preferences.setInteger("lastTempleUnlock", KoLCharacter.getAscensions());
-
-        // If quest Gotta Worship Them All is started, this completes step 1
-        if (QuestDatabase.isQuestStarted(Quest.WORSHIP)) {
-          QuestDatabase.setQuestProgress(Quest.WORSHIP, "step1");
-        }
-
-        // Do we need to look at the woods in order to unlock the Hidden Temple?
-        new UpdateSuppressedRequest("woods.php").run();
+        KoLCharacter.setTempleUnlocked();
+        ResultProcessor.removeItem(ItemPool.SPOOKY_SAPLING);
+        ResultProcessor.removeItem(ItemPool.SPOOKY_FERTILIZER);
 
         break;
 
@@ -2970,6 +2965,14 @@ public class UseItemRequest extends GenericRequest {
 
         break;
 
+      case ItemPool.INFLATABLE_TELEGRAPH_OFFICE:
+        // You blow up the replica LT&T office and install it on the Right Side of the Tracks.
+        if (!responseText.contains("You blow up the replica")) {
+          return;
+        }
+        Preferences.setBoolean("_telegraphOfficeToday", true);
+        break;
+
       case ItemPool.HEART_SHAPED_CRATE:
         Preferences.setBoolean("loveTunnelAvailable", true);
         if (!responseText.contains("You wander")) {
@@ -2977,6 +2980,14 @@ public class UseItemRequest extends GenericRequest {
           KoLmafia.updateDisplay(MafiaState.ERROR, UseItemRequest.lastUpdate);
           return;
         }
+        break;
+
+      case ItemPool.LOVE_ENTRANCE_PASS:
+        // You follow the directions on the ticket to the Tunnel of L.O.V.E.
+        if (!responseText.contains("You follow the directions")) {
+          return;
+        }
+        Preferences.setBoolean("_loveTunnelToday", true);
         break;
 
       case ItemPool.BEAUTIFUL_RAINBOW:
