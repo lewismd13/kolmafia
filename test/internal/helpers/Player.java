@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.time.Month;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import net.sourceforge.kolmafia.AdventureResult;
@@ -20,6 +21,7 @@ import net.sourceforge.kolmafia.KoLConstants;
 import net.sourceforge.kolmafia.KoLConstants.MafiaState;
 import net.sourceforge.kolmafia.Modifiers;
 import net.sourceforge.kolmafia.MonsterData;
+import net.sourceforge.kolmafia.RestrictedItemType;
 import net.sourceforge.kolmafia.StaticEntity;
 import net.sourceforge.kolmafia.ZodiacSign;
 import net.sourceforge.kolmafia.combat.MonsterStatusTracker;
@@ -41,6 +43,7 @@ import net.sourceforge.kolmafia.request.CharPaneRequest;
 import net.sourceforge.kolmafia.request.EquipmentRequest;
 import net.sourceforge.kolmafia.request.FightRequest;
 import net.sourceforge.kolmafia.request.GenericRequest;
+import net.sourceforge.kolmafia.request.StandardRequest;
 import net.sourceforge.kolmafia.session.ChoiceControl;
 import net.sourceforge.kolmafia.session.ChoiceManager;
 import net.sourceforge.kolmafia.session.ClanManager;
@@ -1388,6 +1391,25 @@ public class Player {
     var old = KoLCharacter.getRestricted();
     KoLCharacter.setRestricted(restricted);
     return new Cleanups(() -> KoLCharacter.setRestricted(old));
+  }
+
+  /**
+   * Sets whether a particular item / skill is allowed in Standard
+   *
+   * @param type The type of key
+   * @param key The restricted item / skill
+   * @return Restores to previous value
+   */
+  public static Cleanups withNotAllowedInStandard(final RestrictedItemType type, final String key) {
+    var lcKey = key.toLowerCase();
+    var map = StandardRequest.getRestrictionMap();
+    map.computeIfAbsent(type, k -> new HashSet<>()).add(lcKey);
+
+    return new Cleanups(
+        () -> {
+          var val = map.get(type);
+          if (val != null) val.remove(lcKey);
+        });
   }
 
   /**
