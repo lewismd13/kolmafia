@@ -2,6 +2,7 @@ package net.sourceforge.kolmafia;
 
 import static internal.helpers.HttpClientWrapper.getRequests;
 import static internal.helpers.HttpClientWrapper.setupFakeClient;
+import static internal.helpers.Networking.assertGetRequest;
 import static internal.helpers.Networking.assertPostRequest;
 import static internal.helpers.Networking.html;
 import static internal.helpers.Player.withAscensions;
@@ -12,9 +13,11 @@ import static internal.helpers.Player.withEquipped;
 import static internal.helpers.Player.withFamiliar;
 import static internal.helpers.Player.withFamiliarInTerrarium;
 import static internal.helpers.Player.withHttpClientBuilder;
+import static internal.helpers.Player.withInebriety;
 import static internal.helpers.Player.withItem;
 import static internal.helpers.Player.withLastLocation;
 import static internal.helpers.Player.withLevel;
+import static internal.helpers.Player.withLimitMode;
 import static internal.helpers.Player.withMeat;
 import static internal.helpers.Player.withPath;
 import static internal.helpers.Player.withProperty;
@@ -23,6 +26,8 @@ import static internal.helpers.Player.withRange;
 import static internal.helpers.Player.withRestricted;
 import static internal.helpers.Player.withSign;
 import static internal.matchers.Preference.isSetTo;
+import static internal.matchers.Quest.isStarted;
+import static internal.matchers.Quest.isUnstarted;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -50,6 +55,7 @@ import net.sourceforge.kolmafia.preferences.Preferences;
 import net.sourceforge.kolmafia.request.GenericRequest;
 import net.sourceforge.kolmafia.session.EquipmentManager;
 import net.sourceforge.kolmafia.session.InventoryManager;
+import net.sourceforge.kolmafia.session.LimitMode;
 import net.sourceforge.kolmafia.session.QuestManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,6 +64,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junitpioneer.jupiter.cartesian.CartesianTest;
 
 public class KoLAdventureValidationTest {
@@ -82,8 +90,84 @@ public class KoLAdventureValidationTest {
   }
 
   @Nested
-  class PreValidateAdventure {
+  class Overdrunk {
+    private static final KoLAdventure WARREN =
+        AdventureDatabase.getAdventureByName("The Dire Warren");
 
+    @Test
+    void beingSoberPassesPreValidation() {
+      var cleanups = new Cleanups(withInebriety(5));
+
+      try (cleanups) {
+        assertThat(WARREN.preValidateAdventure(), is(true));
+      }
+    }
+
+    @Test
+    void beingTooDrunkFailsPreValidation() {
+      var cleanups = new Cleanups(withInebriety(30));
+
+      try (cleanups) {
+        assertThat(WARREN.preValidateAdventure(), is(false));
+      }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {EquipmentManager.OFFHAND, EquipmentManager.FAMILIAR})
+    void beingTooDrunkWithAWineglassPassesPreValidation(final int slot) {
+      var cleanups =
+          new Cleanups(
+              withInebriety(30),
+              withFamiliar(FamiliarPool.LEFT_HAND),
+              withEquipped(slot, ItemPool.DRUNKULA_WINEGLASS));
+
+      try (cleanups) {
+        assertThat(WARREN.preValidateAdventure(), is(true));
+      }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {EquipmentManager.OFFHAND, EquipmentManager.FAMILIAR})
+    void beingTooDrunkWithAWineglassInNonSnarfblatFailsPreValidation(final int slot) {
+      var cleanups =
+          new Cleanups(
+              withInebriety(30),
+              withFamiliar(FamiliarPool.LEFT_HAND),
+              withEquipped(slot, ItemPool.DRUNKULA_WINEGLASS));
+
+      try (cleanups) {
+        assertThat(
+            AdventureDatabase.getAdventureByName("The Typical Tavern Cellar")
+                .preValidateAdventure(),
+            is(false));
+      }
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+        value = LimitMode.class,
+        names = {"SPELUNKY", "BATMAN"})
+    void beingTooDrunkInSomeLimitModesPassesPreValidation(final LimitMode limitMode) {
+      var cleanups = new Cleanups(withInebriety(30), withLimitMode(limitMode));
+
+      try (cleanups) {
+        assertThat(WARREN.preValidateAdventure(), is(true));
+      }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Trick-or-Treating", "Drunken Stupor"})
+    void beignTooDrunkInSomeLocationsPassesPreValidation(final String adventureName) {
+      var cleanups = new Cleanups(withInebriety(30));
+
+      try (cleanups) {
+        assertThat(AdventureDatabase.getAdventure(adventureName).preValidateAdventure(), is(true));
+      }
+    }
+  }
+
+  @Nested
+  class PreValidateAdventure {
     private void checkDayPasses(
         KoLAdventure adventure,
         String place,
@@ -93,6 +177,7 @@ public class KoLAdventureValidationTest {
         String alwaysProperty,
         String todayProperty) {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -100,11 +185,11 @@ public class KoLAdventureValidationTest {
               withProperty(todayProperty, today));
       try (cleanups) {
         var url = "place.php?whichplace=" + place;
-        builder.client.addResponse(200, html);
+        client.addResponse(200, html);
 
         boolean success = adventure.preValidateAdventure();
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         if (perm || today) {
           // If we know that we have permanent or daily access, pre-validation
           // returns true with no requests
@@ -187,7 +272,7 @@ public class KoLAdventureValidationTest {
 
     @Nested
     class Spacegate {
-      private static KoLAdventure SPACEGATE =
+      private static final KoLAdventure SPACEGATE =
           AdventureDatabase.getAdventureByName("Through the Spacegate");
       private static final String always = "spacegateAlways";
       private static final String today = "_spacegateToday";
@@ -195,6 +280,7 @@ public class KoLAdventureValidationTest {
       @Test
       public void checkAlwaysAccessForSpacegate() {
         var builder = new FakeHttpClientBuilder();
+        var client = builder.client;
         var cleanups =
             new Cleanups(
                 withHttpClientBuilder(builder),
@@ -203,7 +289,7 @@ public class KoLAdventureValidationTest {
         try (cleanups) {
           // If we have always access, we're good to go.
           boolean success = SPACEGATE.preValidateAdventure();
-          var requests = builder.client.getRequests();
+          var requests = client.getRequests();
           assertThat(requests, hasSize(0));
           assertTrue(success);
         }
@@ -212,6 +298,7 @@ public class KoLAdventureValidationTest {
       @Test
       public void checkTodayAccessForSpacegate() {
         var builder = new FakeHttpClientBuilder();
+        var client = builder.client;
         var cleanups =
             new Cleanups(
                 withHttpClientBuilder(builder),
@@ -220,7 +307,7 @@ public class KoLAdventureValidationTest {
         try (cleanups) {
           // If we have daily access, we're good to go
           boolean success = SPACEGATE.preValidateAdventure();
-          var requests = builder.client.getRequests();
+          var requests = client.getRequests();
           assertThat(requests, hasSize(0));
           assertTrue(success);
         }
@@ -229,6 +316,7 @@ public class KoLAdventureValidationTest {
       @Test
       public void checkPortableAccessForSpacegate() {
         var builder = new FakeHttpClientBuilder();
+        var client = builder.client;
         var cleanups =
             new Cleanups(
                 withHttpClientBuilder(builder),
@@ -239,7 +327,7 @@ public class KoLAdventureValidationTest {
           // If we have neither access, but we have an open portable
           // Spacegate,  we actually have daily access.
           boolean success = SPACEGATE.preValidateAdventure();
-          var requests = builder.client.getRequests();
+          var requests = client.getRequests();
           assertThat(requests, hasSize(0));
           assertTrue(Preferences.getBoolean(today));
           assertTrue(success);
@@ -249,6 +337,7 @@ public class KoLAdventureValidationTest {
       @Test
       public void checkMapAccessForSpacegate() {
         var builder = new FakeHttpClientBuilder();
+        var client = builder.client;
         var cleanups =
             new Cleanups(
                 withHttpClientBuilder(builder),
@@ -257,9 +346,9 @@ public class KoLAdventureValidationTest {
         try (cleanups) {
           // If we have neither access, but the Spacegate is on the map,
           // we actually have permanent access.
-          builder.client.addResponse(200, html("request/test_visit_mountains.html"));
+          client.addResponse(200, html("request/test_visit_mountains.html"));
           boolean success = SPACEGATE.preValidateAdventure();
-          var requests = builder.client.getRequests();
+          var requests = client.getRequests();
           assertThat(requests, hasSize(1));
           assertPostRequest(requests.get(0), "/place.php", "whichplace=mountains");
           assertTrue(Preferences.getBoolean(always));
@@ -270,6 +359,7 @@ public class KoLAdventureValidationTest {
       @Test
       public void checkNoAccessForSpacegate() {
         var builder = new FakeHttpClientBuilder();
+        var client = builder.client;
         var cleanups =
             new Cleanups(
                 withHttpClientBuilder(builder),
@@ -278,9 +368,9 @@ public class KoLAdventureValidationTest {
         try (cleanups) {
           // If we have neither access, but the Spacegate is not on the map,
           // we really have no access
-          builder.client.addResponse(200, "");
+          client.addResponse(200, "");
           boolean success = SPACEGATE.preValidateAdventure();
-          var requests = builder.client.getRequests();
+          var requests = client.getRequests();
           assertThat(requests, hasSize(1));
           assertPostRequest(requests.get(0), "/place.php", "whichplace=mountains");
           assertFalse(success);
@@ -785,17 +875,18 @@ public class KoLAdventureValidationTest {
     @Test
     public void canReadTelegramToStartQuest() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(withHttpClientBuilder(builder), withItem(ItemPool.SPOOKYRAVEN_TELEGRAM));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_spookyraven_telegram.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_spookyraven_telegram.html"));
+        client.addResponse(200, ""); // api.php
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.UNSTARTED);
         assertTrue(HAUNTED_KITCHEN.canAdventure());
         assertTrue(HAUNTED_KITCHEN.prepareForAdventure());
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.STARTED);
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0),
@@ -826,16 +917,17 @@ public class KoLAdventureValidationTest {
     @Test
     public void canFetchAndReadTelegramToStartQuest() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups = new Cleanups(withHttpClientBuilder(builder), withLevel(5));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_spookyraven_telegram.json"));
-        builder.client.addResponse(200, "");
+        client.addResponse(200, html("request/test_spookyraven_telegram.json"));
+        client.addResponse(200, "");
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.UNSTARTED);
         assertTrue(HAUNTED_KITCHEN.canAdventure());
         assertTrue(HAUNTED_KITCHEN.prepareForAdventure());
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.STARTED);
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(requests.get(0), "/api.php", "what=inventory&for=KoLmafia");
         assertPostRequest(
@@ -910,17 +1002,17 @@ public class KoLAdventureValidationTest {
     @Test
     public void canTalkToLadySpookyravenToStartQuest() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
               withAscensions(1),
               withItem(ItemPool.SPOOKYRAVEN_NECKLACE));
       try (cleanups) {
-        builder.client.addResponse(
-            200, html("request/test_lady_spookyraven_2.html")); // Hand in necklace
-        builder.client.addResponse(
+        client.addResponse(200, html("request/test_lady_spookyraven_2.html")); // Hand in necklace
+        client.addResponse(
             200, html("request/test_lady_spookyraven_2A.html")); // Unlock second floor
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, ""); // api.php
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.UNSTARTED);
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), QuestDatabase.UNSTARTED);
         assertTrue(HAUNTED_GALLERY.canAdventure());
@@ -928,7 +1020,7 @@ public class KoLAdventureValidationTest {
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.FINISHED);
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), "step1");
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(3));
         assertPostRequest(requests.get(0), "/place.php", "whichplace=manor1&action=manor1_ladys");
         assertPostRequest(requests.get(1), "/place.php", "whichplace=manor2&action=manor2_ladys");
@@ -986,16 +1078,17 @@ public class KoLAdventureValidationTest {
     @Test
     public void canTalkToLadySpookyravenTwiceToStartQuest() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
               withAscensions(1),
               withItem(ItemPool.SPOOKYRAVEN_NECKLACE));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_lady_spookyraven_1.html"));
-        builder.client.addResponse(200, ""); // api.php
-        builder.client.addResponse(200, html("request/test_lady_spookyraven_2A.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_lady_spookyraven_1.html"));
+        client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_lady_spookyraven_2A.html"));
+        client.addResponse(200, ""); // api.php
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.UNSTARTED);
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), QuestDatabase.UNSTARTED);
         assertTrue(HAUNTED_GALLERY.canAdventure());
@@ -1003,7 +1096,7 @@ public class KoLAdventureValidationTest {
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_NECKLACE), QuestDatabase.FINISHED);
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), "step1");
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(4));
         assertPostRequest(requests.get(0), "/place.php", "whichplace=manor1&action=manor1_ladys");
         assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
@@ -1036,6 +1129,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canTalkToLadySpookyravenToOpenBallroom() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -1043,14 +1137,14 @@ public class KoLAdventureValidationTest {
               withItem(ItemPool.FINEST_GOWN),
               withItem(ItemPool.DANCING_SHOES));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_lady_spookyraven_2B.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_lady_spookyraven_2B.html"));
+        client.addResponse(200, ""); // api.php
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), QuestDatabase.UNSTARTED);
         assertTrue(HAUNTED_BALLROOM.canAdventure());
         assertTrue(HAUNTED_BALLROOM.prepareForAdventure());
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), "step3");
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(requests.get(0), "/place.php", "whichplace=manor2&action=manor2_ladys");
         assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
@@ -1060,21 +1154,22 @@ public class KoLAdventureValidationTest {
     @Test
     public void canBallroomDanceToOpenThirdFloor() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
               withAscensions(1),
               withQuestProgress(Quest.SPOOKYRAVEN_DANCE, "step3"));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_spookraven_dance.html"));
-        builder.client.addResponse(200, ""); // api.php
-        builder.client.addResponse(200, html("request/test_spookyraven_after_dance.html"));
+        client.addResponse(200, html("request/test_spookraven_dance.html"));
+        client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_spookyraven_after_dance.html"));
         var request = new GenericRequest("adventure.php?snarfblat=395");
         request.run();
         assertEquals(QuestDatabase.getQuest(Quest.SPOOKYRAVEN_DANCE), QuestDatabase.FINISHED);
         assertTrue(HAUNTED_LABORATORY.canAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(3));
         assertPostRequest(requests.get(0), "/adventure.php", "snarfblat=395");
         assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
@@ -1149,6 +1244,84 @@ public class KoLAdventureValidationTest {
   }
 
   @Nested
+  class DegrassiKnoll {
+    private static final KoLAdventure GARAGE =
+        AdventureDatabase.getAdventureByName("The Degrassi Knoll Garage");
+
+    @Test
+    public void hostileKnollNotAvailableInMuscleSign() {
+      var cleanups =
+          new Cleanups(
+              withSign(ZodiacSign.VOLE), withQuestProgress(Quest.UNTINKER, QuestDatabase.STARTED));
+      try (cleanups) {
+        assertFalse(GARAGE.canAdventure());
+      }
+    }
+
+    @Test
+    public void hostileKnollNotAvailableIfNotUnlocked() {
+      var cleanups =
+          new Cleanups(
+              withSign(ZodiacSign.PACKRAT),
+              withQuestProgress(Quest.UNTINKER, QuestDatabase.UNSTARTED),
+              withQuestProgress(Quest.MEATCAR, QuestDatabase.UNSTARTED),
+              withQuestProgress(Quest.LARVA, QuestDatabase.UNSTARTED));
+      try (cleanups) {
+        assertFalse(GARAGE.canAdventure());
+      }
+    }
+
+    @Test
+    public void hostileKnollAvailableIfUntinkerUnlocked() {
+      var cleanups =
+          new Cleanups(
+              withSign(ZodiacSign.PACKRAT),
+              withQuestProgress(Quest.UNTINKER, QuestDatabase.STARTED));
+      try (cleanups) {
+        assertTrue(GARAGE.canAdventure());
+      }
+    }
+
+    @Test
+    public void hostileKnollAvailableIfPacoUnlocked() {
+      var cleanups =
+          new Cleanups(
+              withSign(ZodiacSign.PACKRAT),
+              withQuestProgress(Quest.MEATCAR, QuestDatabase.STARTED));
+      try (cleanups) {
+        assertTrue(GARAGE.canAdventure());
+      }
+    }
+
+    @Test
+    public void willAcceptUntinkerQuestToUnlockHostileKnoll() {
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
+      var cleanups =
+          new Cleanups(
+              withHttpClientBuilder(builder),
+              withSign(ZodiacSign.PACKRAT),
+              withQuestProgress(Quest.UNTINKER, QuestDatabase.UNSTARTED),
+              withQuestProgress(Quest.LARVA, QuestDatabase.STARTED));
+      try (cleanups) {
+        client.addResponse(200, html("request/test_visit_untinker_accept_quest.html"));
+        client.addResponse(200, ""); // api.php
+        assertTrue(GARAGE.canAdventure());
+        assertTrue(GARAGE.prepareForAdventure());
+        assertThat(Quest.UNTINKER, isStarted());
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(2));
+        assertPostRequest(
+            requests.get(0),
+            "/place.php",
+            "whichplace=forestvillage&action=fv_untinker_quest&preaction=screwquest");
+        assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
+      }
+    }
+  }
+
+  @Nested
   class Portal {
     private static final KoLAdventure EL_VIBRATO =
         AdventureDatabase.getAdventureByName("El Vibrato Island");
@@ -1184,6 +1357,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void elVibratoAvailableWithTrapezoid() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -1191,14 +1365,14 @@ public class KoLAdventureValidationTest {
               withEmptyCampground(),
               withProperty("currentPortalEnergy", 0));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_use_el_vibrato_trapezoid.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_use_el_vibrato_trapezoid.html"));
+        client.addResponse(200, ""); // api.php
 
         assertTrue(EL_VIBRATO.canAdventure());
         assertTrue(EL_VIBRATO.prepareForAdventure());
         assertFalse(InventoryManager.hasItem(ItemPool.TRAPEZOID));
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(requests.get(0), "/inv_use.php", "whichitem=3198&ajax=1");
         assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
@@ -1224,6 +1398,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canAdventureWithTransfunctionerEquipped() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -1233,7 +1408,7 @@ public class KoLAdventureValidationTest {
         assertTrue(PIXEL_REALM.canAdventure());
         assertTrue(PIXEL_REALM.prepareForAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(0));
       }
     }
@@ -1241,18 +1416,19 @@ public class KoLAdventureValidationTest {
     @Test
     public void canAdventureWithTransfunctionerInInventory() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
               withQuestProgress(Quest.LARVA, QuestDatabase.STARTED),
               withEquippableItem(ItemPool.TRANSFUNCTIONER));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_equip_transfunctioner.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_equip_transfunctioner.html"));
+        client.addResponse(200, ""); // api.php
         assertTrue(PIXEL_REALM.canAdventure());
         assertTrue(PIXEL_REALM.prepareForAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0),
@@ -1263,24 +1439,25 @@ public class KoLAdventureValidationTest {
     }
 
     private void acquireAndEquipTransfunctioner(FakeHttpClientBuilder builder) {
+      var client = builder.client;
       // place.php?whichplace=forestvillage&action=fv_mystic
-      builder.client.addResponse(302, Map.of("location", List.of("choice.php?forceoption=0")), "");
-      builder.client.addResponse(200, html("request/test_mystic_1.html"));
+      client.addResponse(302, Map.of("location", List.of("choice.php?forceoption=0")), "");
+      client.addResponse(200, html("request/test_mystic_1.html"));
       // choice.php?whichchoice=664&option=1&pwd
-      builder.client.addResponse(200, html("request/test_mystic_2.html"));
+      client.addResponse(200, html("request/test_mystic_2.html"));
       // choice.php?whichchoice=664&option=1&pwd
-      builder.client.addResponse(200, html("request/test_mystic_3.html"));
+      client.addResponse(200, html("request/test_mystic_3.html"));
       // choice.php?whichchoice=664&option=1&pwd
-      builder.client.addResponse(200, html("request/test_mystic_4.html"));
-      builder.client.addResponse(200, ""); // api.php
+      client.addResponse(200, html("request/test_mystic_4.html"));
+      client.addResponse(200, ""); // api.php
       // inv_equip.php?which=2&ajax=1&slot=1&action=equip&whichitem=458
-      builder.client.addResponse(200, html("request/test_equip_transfunctioner.html"));
-      builder.client.addResponse(200, ""); // api.php
+      client.addResponse(200, html("request/test_equip_transfunctioner.html"));
+      client.addResponse(200, ""); // api.php
 
       assertTrue(PIXEL_REALM.canAdventure());
       assertTrue(PIXEL_REALM.prepareForAdventure());
 
-      var requests = builder.client.getRequests();
+      var requests = client.getRequests();
       assertThat(requests, hasSize(8));
       assertPostRequest(requests.get(0), "/place.php", "whichplace=forestvillage&action=fv_mystic");
       assertPostRequest(requests.get(1), "/choice.php", "forceoption=0");
@@ -1298,6 +1475,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canAcquireAndEquipTransfunctionerAutomated() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -1311,6 +1489,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canAcquireAndEquipTransfunctionerManually() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -2556,6 +2735,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canVisitPalindomeWithTalismanEquipped() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -2563,7 +2743,7 @@ public class KoLAdventureValidationTest {
       try (cleanups) {
         assertTrue(PALINDOME.canAdventure());
         assertTrue(PALINDOME.prepareForAdventure());
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(0));
       }
     }
@@ -2571,15 +2751,16 @@ public class KoLAdventureValidationTest {
     @Test
     public void canEquipTalismanFromInventory() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(withHttpClientBuilder(builder), withEquippableItem(ItemPool.TALISMAN));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
+        client.addResponse(200, ""); // api.php
         assertTrue(PALINDOME.canAdventure());
         assertTrue(PALINDOME.prepareForAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0),
@@ -2604,6 +2785,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canCreateTalismanAndEquipWithMeat() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -2611,16 +2793,16 @@ public class KoLAdventureValidationTest {
               withItem(ItemPool.COPPERHEAD_CHARM_RAMPANT),
               withMeat(10));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_visit_palindome_make_paste.html"));
-        builder.client.addResponse(200, ""); // api.php
-        builder.client.addResponse(200, html("request/test_visit_palindome_make_talisman.html"));
-        builder.client.addResponse(200, ""); // api.php
-        builder.client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_make_paste.html"));
+        client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_make_talisman.html"));
+        client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
+        client.addResponse(200, ""); // api.php
         assertTrue(PALINDOME.canAdventure());
         assertTrue(PALINDOME.prepareForAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(6));
         assertPostRequest(
             requests.get(0), "/craft.php", "action=makepaste&whichitem=25&ajax=1&qty=1");
@@ -2639,6 +2821,7 @@ public class KoLAdventureValidationTest {
     @Test
     public void canCreateTalismanAndEquipWithThePlunger() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -2646,14 +2829,14 @@ public class KoLAdventureValidationTest {
               withItem(ItemPool.COPPERHEAD_CHARM_RAMPANT),
               withSign(ZodiacSign.VOLE));
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_visit_palindome_make_talisman.html"));
-        builder.client.addResponse(200, ""); // api.php
-        builder.client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_make_talisman.html"));
+        client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_visit_palindome_equip_talisman.html"));
+        client.addResponse(200, ""); // api.php
         assertTrue(PALINDOME.canAdventure());
         assertTrue(PALINDOME.prepareForAdventure());
 
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(4));
         assertPostRequest(
             requests.get(0), "/craft.php", "action=craft&mode=combine&ajax=1&a=7178&b=7186&qty=1");
@@ -4340,6 +4523,7 @@ public class KoLAdventureValidationTest {
     @Test
     void canPrepareForAdventureWithEquipmentEquipped() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -4352,7 +4536,7 @@ public class KoLAdventureValidationTest {
       try (cleanups) {
         assertThat(SPACEGATE.canAdventure(), is(true));
         assertThat(SPACEGATE.prepareForAdventure(), is(true));
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(0));
       }
     }
@@ -4360,6 +4544,7 @@ public class KoLAdventureValidationTest {
     @Test
     void canPrepareForAdventureWithEquipmentInInventory() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -4372,7 +4557,7 @@ public class KoLAdventureValidationTest {
       try (cleanups) {
         assertThat(SPACEGATE.canAdventure(), is(true));
         assertThat(SPACEGATE.prepareForAdventure(), is(true));
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(1));
         assertPostRequest(
             requests.get(0),
@@ -4384,6 +4569,7 @@ public class KoLAdventureValidationTest {
     @Test
     void canPrepareForAdventureAndAcquireEquipment() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -4394,10 +4580,10 @@ public class KoLAdventureValidationTest {
               withLastLocation(SPACEGATE));
 
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_spacegate_hazards_2.html"));
+        client.addResponse(200, html("request/test_spacegate_hazards_2.html"));
         assertThat(SPACEGATE.canAdventure(), is(true));
         assertThat(SPACEGATE.prepareForAdventure(), is(true));
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(2));
         assertPostRequest(requests.get(0), "/adventure.php", "snarfblat=494");
         assertPostRequest(
@@ -4410,6 +4596,7 @@ public class KoLAdventureValidationTest {
     @Test
     void canPrepareForAdventureAndFindAndAcquireEquipment() {
       var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
               withHttpClientBuilder(builder),
@@ -4419,11 +4606,11 @@ public class KoLAdventureValidationTest {
               withLastLocation(SPACEGATE));
 
       try (cleanups) {
-        builder.client.addResponse(200, html("request/test_spacegate_hazards_1.html"));
-        builder.client.addResponse(200, ""); // api.php
+        client.addResponse(200, html("request/test_spacegate_hazards_1.html"));
+        client.addResponse(200, ""); // api.php
         assertThat(SPACEGATE.canAdventure(), is(true));
         assertThat(SPACEGATE.prepareForAdventure(), is(true));
-        var requests = builder.client.getRequests();
+        var requests = client.getRequests();
         assertThat(requests, hasSize(3));
         assertPostRequest(requests.get(0), "/adventure.php", "snarfblat=494");
         assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
@@ -4437,6 +4624,7 @@ public class KoLAdventureValidationTest {
 
   @Nested
   class Orchard {
+    @SuppressWarnings("unused")
     private enum Chambers {
       HATCHING("The Hatching Chamber", -1, -1),
       FEEDING(
@@ -4452,9 +4640,9 @@ public class KoLAdventureValidationTest {
           EffectPool.FILTHWORM_GUARD_STENCH,
           ItemPool.FILTHWORM_GUARD_GLAND);
 
-      private KoLAdventure adventure;
-      private int effectId;
-      private int itemId;
+      private final KoLAdventure adventure;
+      private final int effectId;
+      private final int itemId;
 
       Chambers(final String adventureName, final int effectId, final int itemId) {
         this.adventure = AdventureDatabase.getAdventureByName(adventureName);
@@ -4714,7 +4902,6 @@ public class KoLAdventureValidationTest {
         var success = BANDITS.prepareForAdventure();
 
         var requests = getRequests();
-
         assertThat(requests, hasSize(1));
         assertPostRequest(requests.get(0), "/familiar.php", "action=putback&ajax=1");
         assertThat(success, is(true));
@@ -4803,6 +4990,7 @@ public class KoLAdventureValidationTest {
     //   If have no access and have item, prepareForAdventure uses item.
     //   If have no access and don't have item, prepareForAdventure starts quest with NPC
 
+    @Test
     void withAccessToSkeletonStoreMakesNoRequests() {
       var cleanups = new Cleanups(withProperty("skeletonStoreAvailable", true));
       setupFakeClient();
@@ -4814,38 +5002,66 @@ public class KoLAdventureValidationTest {
       }
     }
 
+    @Test
     void withSkeletonStoreItemUsesItem() {
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
+              withHttpClientBuilder(builder),
               withProperty("skeletonStoreAvailable", false),
+              withQuestProgress(Quest.MEATSMITH, QuestDatabase.UNSTARTED),
               withItem(ItemPool.BONE_WITH_A_PRICE_TAG));
-      setupFakeClient();
       try (cleanups) {
-        var success = SKELETON_STORE.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(1));
+        client.addResponse(200, html("request/test_use_bone_with_a_tag.html"));
+        client.addResponse(200, ""); // api.php
+        assertTrue(SKELETON_STORE.canAdventure());
+        assertTrue(SKELETON_STORE.prepareForAdventure());
+        assertThat(Quest.MEATSMITH, isUnstarted());
+        assertTrue(Preferences.getBoolean("skeletonStoreAvailable"));
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0),
             "/inv_use.php",
             "whichitem=" + ItemPool.BONE_WITH_A_PRICE_TAG + "&ajax=1");
-        assertThat(success, is(true));
+        assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
       }
     }
 
+    @Test
     void withoutSkeletonStoreItemStartsQuest() {
-      var cleanups = new Cleanups(withProperty("skeletonStoreAvailable", false));
-      setupFakeClient();
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
+      var cleanups =
+          new Cleanups(
+              withHttpClientBuilder(builder),
+              withQuestProgress(Quest.MEATSMITH, QuestDatabase.UNSTARTED),
+              withProperty("skeletonStoreAvailable", false));
       try (cleanups) {
-        var success = SKELETON_STORE.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(3));
+        client.addResponse(200, html("request/test_visit_meatsmith_quest.html"));
+        client.addResponse(302, Map.of("location", List.of("choice.php?forceoption=0")), "");
+        client.addResponse(200, html("request/test_visit_meatsmith_talk.html"));
+        client.addResponse(200, html("request/test_visit_meatsmith_accept.html"));
+        client.addResponse(200, ""); // api.php
+
+        assertTrue(SKELETON_STORE.canAdventure());
+        assertTrue(SKELETON_STORE.prepareForAdventure());
+        assertThat(Quest.MEATSMITH, isStarted());
+        assertTrue(Preferences.getBoolean("skeletonStoreAvailable"));
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(5));
         assertPostRequest(requests.get(0), "/shop.php", "whichshop=meatsmith");
         assertPostRequest(requests.get(1), "/shop.php", "whichshop=meatsmith&action=talk");
-        assertPostRequest(requests.get(2), "/choice.php", "whichchoice=1059&option=1");
-        assertThat(success, is(true));
+        assertGetRequest(requests.get(2), "/choice.php", "forceoption=0");
+        assertPostRequest(requests.get(3), "/choice.php", "whichchoice=1059&option=1");
+        assertPostRequest(requests.get(4), "/api.php", "what=status&for=KoLmafia");
       }
     }
 
+    @Test
     void withAccessToMadnessBakeryStoreMakesNoRequests() {
       var cleanups = new Cleanups(withProperty("madnessBakeryAvailable", true));
       setupFakeClient();
@@ -4857,38 +5073,66 @@ public class KoLAdventureValidationTest {
       }
     }
 
+    @Test
     void withMadnessBakeryItemUsesItem() {
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
           new Cleanups(
+              withHttpClientBuilder(builder),
+              withQuestProgress(Quest.ARMORER, QuestDatabase.UNSTARTED),
               withProperty("madnessBakeryAvailable", false),
               withItem(ItemPool.HYPNOTIC_BREADCRUMBS));
-      setupFakeClient();
       try (cleanups) {
-        var success = MADNESS_BAKERY.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(1));
+        client.addResponse(200, html("request/test_use_breadcrumbs.html"));
+        client.addResponse(200, ""); // api.php
+        assertTrue(MADNESS_BAKERY.canAdventure());
+        assertTrue(MADNESS_BAKERY.prepareForAdventure());
+        assertThat(Quest.ARMORER, isUnstarted());
+        assertTrue(Preferences.getBoolean("madnessBakeryAvailable"));
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0),
             "/inv_use.php",
             "whichitem=" + ItemPool.HYPNOTIC_BREADCRUMBS + "&ajax=1");
-        assertThat(success, is(true));
+        assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
       }
     }
 
+    @Test
     void withoutMadnessBakeryItemStartsQuest() {
-      var cleanups = new Cleanups(withProperty("madnessBakeryStoreAvailable", false));
-      setupFakeClient();
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
+      var cleanups =
+          new Cleanups(
+              withHttpClientBuilder(builder),
+              withQuestProgress(Quest.ARMORER, QuestDatabase.UNSTARTED),
+              withProperty("madnessBakeryAvailable", false));
       try (cleanups) {
-        var success = MADNESS_BAKERY.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(3));
+        client.addResponse(200, html("request/test_visit_armory_quest.html"));
+        client.addResponse(302, Map.of("location", List.of("choice.php?forceoption=0")), "");
+        client.addResponse(200, html("request/test_visit_armory_talk.html"));
+        client.addResponse(200, html("request/test_visit_armory_accept.html"));
+        client.addResponse(200, ""); // api.php
+
+        assertTrue(MADNESS_BAKERY.canAdventure());
+        assertTrue(MADNESS_BAKERY.prepareForAdventure());
+        assertThat(Quest.ARMORER, isStarted());
+        assertTrue(Preferences.getBoolean("madnessBakeryAvailable"));
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(5));
         assertPostRequest(requests.get(0), "/shop.php", "whichshop=armory");
         assertPostRequest(requests.get(1), "/shop.php", "whichshop=armory&action=talk");
-        assertPostRequest(requests.get(2), "/choice.php", "whichchoice=1065&option=1");
-        assertThat(success, is(true));
+        assertGetRequest(requests.get(2), "/choice.php", "forceoption=0");
+        assertPostRequest(requests.get(3), "/choice.php", "whichchoice=1065&option=1");
+        assertPostRequest(requests.get(4), "/api.php", "what=status&for=KoLmafia");
       }
     }
 
+    @Test
     void withAccessToOvergrownLotMakesNoRequests() {
       var cleanups = new Cleanups(withProperty("overgrownLotAvailable", true));
       setupFakeClient();
@@ -4900,31 +5144,60 @@ public class KoLAdventureValidationTest {
       }
     }
 
+    @Test
     void withOvergrownLotItemUsesItem() {
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
       var cleanups =
-          new Cleanups(withProperty("overgrownLotAvailable", false), withItem(ItemPool.BOOZE_MAP));
-      setupFakeClient();
+          new Cleanups(
+              withHttpClientBuilder(builder),
+              withQuestProgress(Quest.DOC, QuestDatabase.UNSTARTED),
+              withProperty("overgrownLotAvailable", false),
+              withItem(ItemPool.BOOZE_MAP));
       try (cleanups) {
-        var success = OVERGROWN_LOT.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(1));
+        client.addResponse(200, html("request/test_use_booze_cache_map.html"));
+        client.addResponse(200, ""); // api.php
+        assertTrue(OVERGROWN_LOT.canAdventure());
+        assertTrue(OVERGROWN_LOT.prepareForAdventure());
+        assertThat(Quest.DOC, isUnstarted());
+        assertTrue(Preferences.getBoolean("overgrownLotAvailable"));
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(2));
         assertPostRequest(
             requests.get(0), "/inv_use.php", "whichitem=" + ItemPool.BOOZE_MAP + "&ajax=1");
-        assertThat(success, is(true));
+        assertPostRequest(requests.get(1), "/api.php", "what=status&for=KoLmafia");
       }
     }
 
+    @Test
     void withoutOvergrownLotItemStartsQuest() {
-      var cleanups = new Cleanups(withProperty("overgrownLotAvailable", false));
-      setupFakeClient();
+      var builder = new FakeHttpClientBuilder();
+      var client = builder.client;
+      var cleanups =
+          new Cleanups(
+              withHttpClientBuilder(builder),
+              withQuestProgress(Quest.DOC, QuestDatabase.UNSTARTED),
+              withProperty("overgrownLotAvailable", false));
       try (cleanups) {
-        var success = OVERGROWN_LOT.prepareForAdventure();
-        var requests = getRequests();
-        assertThat(requests, hasSize(3));
+        client.addResponse(200, html("request/test_visit_galaktik_quest.html"));
+        client.addResponse(302, Map.of("location", List.of("choice.php?forceoption=0")), "");
+        client.addResponse(200, html("request/test_visit_galaktik_talk.html"));
+        client.addResponse(200, html("request/test_visit_galaktik_accept.html"));
+        client.addResponse(200, ""); // api.php
+
+        assertTrue(OVERGROWN_LOT.canAdventure());
+        assertTrue(OVERGROWN_LOT.prepareForAdventure());
+        assertTrue(Preferences.getBoolean("overgrownLotAvailable"));
+        assertThat(Quest.DOC, isStarted());
+
+        var requests = client.getRequests();
+        assertThat(requests, hasSize(5));
         assertPostRequest(requests.get(0), "/shop.php", "whichshop=doc");
         assertPostRequest(requests.get(1), "/shop.php", "whichshop=doc&action=talk");
-        assertPostRequest(requests.get(2), "/choice.php", "whichchoice=1064&option=1");
-        assertThat(success, is(true));
+        assertGetRequest(requests.get(2), "/choice.php", "forceoption=0");
+        assertPostRequest(requests.get(3), "/choice.php", "whichchoice=1064&option=1");
+        assertPostRequest(requests.get(4), "/api.php", "what=status&for=KoLmafia");
       }
     }
   }
