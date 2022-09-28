@@ -2306,6 +2306,7 @@ public class ItemPool {
   public static final int OFFENSIVE_JOKE_BOOK = 7458;
   public static final int COOKING_WITH_GREASE_BOOK = 7459;
   public static final int DINER_HANDBOOK = 7460;
+  public static final int ANTI_FUNGAL_SPRAY = 7461;
   public static final int SPRING_BEACH_TATTOO_COUPON = 7465;
   public static final int SPRING_BEACH_CHARTER = 7466;
   public static final int SPRING_BEACH_TICKET = 7467;
@@ -3402,6 +3403,7 @@ public class ItemPool {
   public static final int DESIGNER_SWEATPANTS = 10929;
   public static final int STILLSUIT = 10932;
   public static final int DINODOLLAR = 10944;
+  public static final int DINOSAUR_DROPPINGS = 10945;
   public static final int JURASSIC_PARKA = 10952;
 
   private ItemPool() {}

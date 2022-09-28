@@ -808,24 +808,26 @@ public class CampgroundRequest extends GenericRequest {
       return;
     }
 
-    Matcher matcher = GenericRequest.ACTION_PATTERN.matcher(urlString);
-    if (!matcher.find()) {
+    var action = GenericRequest.getAction(urlString);
+    var preaction = GenericRequest.getPreaction(urlString);
+
+    if (action == null) {
       CampgroundRequest.parseCampground(responseText);
-      return;
+      action = "";
     }
 
-    String action = matcher.group(1);
+    if (preaction == null) {
+      preaction = "";
+    }
 
     // A request can have both action=bookshelf and preaction=yyy.
     // Check for that.
-    if (action.equals("bookshelf") && matcher.find()) {
-      action = matcher.group(1);
-    }
-
     if (action.equals("bookshelf")) {
-      // No preaction. Look at books.
-      CampgroundRequest.parseBookTitles(responseText);
-      return;
+      if (preaction.equals("")) {
+        // No preaction. Look at books.
+        CampgroundRequest.parseBookTitles(responseText);
+        return;
+      }
     }
 
     if (action.equals("makepizza")) {
@@ -853,7 +855,7 @@ public class CampgroundRequest extends GenericRequest {
     // Combining clip arts does this:
     //   campground.php?action=bookshelf&preaction=combinecliparts&clip1=05&clip2=05&clip3=03&pwd
 
-    if (action.startsWith("summon") || action.equals("combinecliparts")) {
+    if (preaction.startsWith("summon") || preaction.equals("combinecliparts")) {
       UseSkillRequest.parseResponse(urlString, responseText);
       return;
     }
@@ -986,7 +988,7 @@ public class CampgroundRequest extends GenericRequest {
       return;
     }
 
-    if (action.equals("drive")) {
+    if (preaction.equals("drive")) {
       Matcher fuelMatcher = FUEL_PATTERN_1.matcher(responseText);
       if (fuelMatcher.find()) {
         asdonMartinFuel = StringUtilities.parseInt(fuelMatcher.group(1));

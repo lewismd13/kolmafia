@@ -137,7 +137,7 @@ public class RelayRequest extends PasswordHashRequest {
   private static final String CONFIRM_STICKER = "confirm25";
   private static final String CONFIRM_DESERT_OFFHAND = "confirm26";
   public static final String CONFIRM_MACHETE = "confirm27";
-  private static final String CONFIRM_RALPH = "confirm28";
+  public static final String CONFIRM_RALPH = "confirm28";
   private static final String CONFIRM_RALPH1 = "confirm29";
   private static final String CONFIRM_RALPH2 = "confirm30";
   public static final String CONFIRM_DESERT_WEAPON = "confirm31";
@@ -795,7 +795,6 @@ public class RelayRequest extends PasswordHashRequest {
 
   public boolean sendBreakPrismWarning(final String urlString) {
     // place.php?whichplace=nstower&action=ns_11_prism
-
     if (!urlString.startsWith("place.php")
         || !urlString.contains("whichplace=nstower")
         || !urlString.contains("action=ns_11_prism")) {
@@ -809,6 +808,11 @@ public class RelayRequest extends PasswordHashRequest {
     // Isotopes
 
     if (KoLCharacter.isKingdomOfExploathing()) {
+      // If user has already confirmed he wants to break the prism, accept it
+      if (this.getFormField(CONFIRM_RALPH) != null) {
+        return false;
+      }
+
       if (InventoryManager.getCount(ItemPool.RARE_MEAT_ISOTOPE) <= 0) {
         return false;
       }
@@ -883,6 +887,11 @@ public class RelayRequest extends PasswordHashRequest {
     // You might want to spend Energy on Adventures or Stats.
 
     if (KoLCharacter.inRobocore()) {
+      // If user has already confirmed he wants to go there, accept it
+      if (this.getFormField(CONFIRM_RALPH) != null) {
+        return false;
+      }
+
       int energy = KoLCharacter.getYouRobotEnergy();
       int chronolithCost = Preferences.getInteger("_chronolithNextCost");
       int statbotCost = Preferences.getInteger("statbotUses") + 10;
@@ -925,6 +934,11 @@ public class RelayRequest extends PasswordHashRequest {
     // your dinodollars
 
     if (KoLCharacter.inDinocore()) {
+      // If user has already confirmed he wants to go there, accept it
+      if (this.getFormField(CONFIRM_RALPH) != null) {
+        return false;
+      }
+
       if (InventoryManager.getCount(ItemPool.DINODOLLAR) <= 0) {
         return false;
       }
@@ -2335,7 +2349,8 @@ public class RelayRequest extends PasswordHashRequest {
     if (KoLCharacter.inRaincore()
         || KoLCharacter.isVampyre()
         || KoLCharacter.isPlumber()
-        || KoLCharacter.inRobocore()) {
+        || KoLCharacter.inRobocore()
+        || KoLCharacter.inDinocore()) {
       return false;
     }
 
@@ -2707,23 +2722,12 @@ public class RelayRequest extends PasswordHashRequest {
       return false;
     }
 
-    // If you are not overdrunk, nothing to warn about
-    if (!KoLCharacter.isFallingDown()) {
+    if (!adventure.tooDrunkToAdventure()) {
       return false;
     }
 
-    // Only adventure.php will shunt you into a Drunken Stupor
-    if (!adventure.getFormSource().equals("adventure.php")) {
-      return false;
-    }
-
-    // If you are equipped with Drunkula's wineglass, nothing to warn about
-    if (KoLCharacter.hasEquipped(ItemPool.DRUNKULA_WINEGLASS, EquipmentManager.OFFHAND)) {
-      return false;
-    }
-
-    // If you don't own Drunkula's wineglass, nothing to warn about
-    if (InventoryManager.getCount(ItemPool.DRUNKULA_WINEGLASS) == 0) {
+    // These don't need warning as they don't send you to a Drunken Stupor
+    if (!adventure.hasSnarfblat()) {
       return false;
     }
 
