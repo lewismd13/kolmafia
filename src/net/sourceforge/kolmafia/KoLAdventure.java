@@ -78,7 +78,7 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
 
   private final boolean hasWanderers;
   private final String zone, parentZone, rootZone;
-  private final String adventureId, formSource, adventureName, environment;
+  private final String adventureId, formSource, adventureName, difficultyLevel, environment;
   private final int adventureNumber;
   private final int recommendedStat, waterLevel;
   private final String normalString, lowercaseString, parentZoneDescription;
@@ -119,6 +119,7 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
 
     this.rootZone = AdventureDatabase.getRootZone(this.parentZone);
 
+    this.difficultyLevel = AdventureDatabase.getDifficultyLevel(adventureName);
     this.environment = AdventureDatabase.getEnvironment(adventureName);
 
     this.recommendedStat = AdventureDatabase.getRecommendedStat(adventureName);
@@ -176,6 +177,10 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
 
   public String getRootZone() {
     return this.rootZone;
+  }
+
+  public String getDifficultyLevel() {
+    return this.difficultyLevel;
   }
 
   public String getEnvironment() {
@@ -518,7 +523,7 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
     }
 
     // If we have permanent access, cool.
-    if (Preferences.getBoolean(alwaysPref)) {
+    if (alwaysPref != null && Preferences.getBoolean(alwaysPref)) {
       return true;
     }
     // If we don't know we have daily access, looking at the map
@@ -569,6 +574,10 @@ public class KoLAdventure implements Comparable<KoLAdventure>, Runnable {
         return checkZone("prAlways", "_prToday", "monorail");
       case "Tunnel of L.O.V.E.":
         return checkZone("loveTunnelAvailable", "_loveTunnelToday", "town_wrong");
+      case "Twitch":
+        // There is no permanent access to the Time Twitching Tower; it's
+        // always day by day.
+        return checkZone(null, "timeTowerAvailable", "town");
       case "The Spacegate":
         // Through the Spacegate
 
