@@ -3123,7 +3123,7 @@ public class RelayRequest extends PasswordHashRequest {
           }
         }
 
-        matcher.appendTail(buffer);s
+        matcher.appendTail(buffer);
 
         int headIndex = buffer.indexOf("</head>");
         if (headIndex != -1) {
