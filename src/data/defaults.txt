@@ -695,6 +695,18 @@ user	guzzlrQuestBooze
 user	guzzlrQuestLocation	
 user	guzzlrQuestTier	
 user	haciendaLayout	000000000000000000
+user	hallowiener8BitRealm	0
+user	hallowienerCoinspiracy	0
+user	hallowienerDefiledNook	false
+user	hallowienerGuanoJunction	false
+user	hallowienerKnollGym	false
+user	hallowienerMadnessBakery	false
+user	hallowienerMiddleChamber	false
+user	hallowienerOvergrownLot	false
+user	hallowienerSkeletonStore	false
+user	hallowienerSmutOrcs	false
+user	hallowienerSonofaBeach	false
+user	hallowienerVolcoino	false
 user	hardcorePVPWarning	false
 user	harvestBatteriesHardcore	true
 user	harvestBatteriesSoftcore	true
@@ -838,6 +850,9 @@ user	lastGuildStoreOpen	-1
 user	lastGuyMadeOfBeesReset	-1
 user	lastFratboyCall	-1
 user	lastFriarCeremonyAscension	-1
+user	lastFriarElbowNC	-1
+user	lastFriarHeartNC	-1
+user	lastFriarNeckNC	-1
 user	lastHippyCall	-1
 user	lastIslandUnlock	-1
 user	lastKeyotronUse	-1
