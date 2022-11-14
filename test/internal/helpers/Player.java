@@ -897,6 +897,15 @@ public class Player {
   }
 
   /**
+   * Sets the player's current run
+   *
+   * @return Resets remaining adventures to previous value
+   */
+  public static Cleanups withCurrentRun() {
+    return withCurrentRun(KoLCharacter.getCurrentRun());
+  }
+
+  /**
    * Sets the player's ascensions
    *
    * @param ascensions Desired ascensions
@@ -1220,9 +1229,18 @@ public class Player {
    * @return Restores the previous value of the property
    */
   public static Cleanups withProperty(final String key, final int value) {
+    var global = Preferences.isGlobalProperty(key);
+    var exists = Preferences.propertyExists(key, global);
     var oldValue = Preferences.getInteger(key);
     Preferences.setInteger(key, value);
-    return new Cleanups(() -> Preferences.setInteger(key, oldValue));
+    return new Cleanups(
+        () -> {
+          if (exists) {
+            Preferences.setInteger(key, oldValue);
+          } else {
+            Preferences.removeProperty(key, global);
+          }
+        });
   }
 
   /**
@@ -1233,9 +1251,18 @@ public class Player {
    * @return Restores the previous value of the property
    */
   public static Cleanups withProperty(final String key, final String value) {
+    var global = Preferences.isGlobalProperty(key);
+    var exists = Preferences.propertyExists(key, global);
     var oldValue = Preferences.getString(key);
     Preferences.setString(key, value);
-    return new Cleanups(() -> Preferences.setString(key, oldValue));
+    return new Cleanups(
+        () -> {
+          if (exists) {
+            Preferences.setString(key, oldValue);
+          } else {
+            Preferences.removeProperty(key, global);
+          }
+        });
   }
 
   /**
@@ -1246,9 +1273,18 @@ public class Player {
    * @return Restores the previous value of the property
    */
   public static Cleanups withProperty(final String key, final boolean value) {
+    var global = Preferences.isGlobalProperty(key);
+    var exists = Preferences.propertyExists(key, global);
     var oldValue = Preferences.getBoolean(key);
     Preferences.setBoolean(key, value);
-    return new Cleanups(() -> Preferences.setBoolean(key, oldValue));
+    return new Cleanups(
+        () -> {
+          if (exists) {
+            Preferences.setBoolean(key, oldValue);
+          } else {
+            Preferences.removeProperty(key, global);
+          }
+        });
   }
 
   /**
