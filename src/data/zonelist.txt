@@ -100,9 +100,6 @@ LT&T	Town	LT&T Telegrams	inflatable LT&T telegraph office
 Neverending Party	Town	The Neverending Party	Neverending Party guest pass
 
 Astral	Astral	Astral Plane	astral mushroom
-Bad Trip	Astral	Taking a Bad Trip
-Mediocre Trip	Astral	Taking a Mediocre Trip
-Great Trip	Astral	Taking a Great Trip
 
 Wormwood	Wormwood	Worm Wood	tiny bottle of absinthe
 Memories	Memories	Memories	empty agua de vida bottle
@@ -176,6 +173,7 @@ Override	Unsorted	Discoveries
 
 Events	Events	Events
 Twitch	Town	Time-Twitching Tower
+Crimbo22	Holiday	Christmas 2022
 
 # The following zones are all retired Events or Holidays
 
