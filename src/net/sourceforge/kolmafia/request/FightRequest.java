@@ -5491,6 +5491,8 @@ public class FightRequest extends GenericRequest {
     public boolean carnivorous;
     public boolean lovebugs;
     public String lovebugProperty;
+    public boolean toyTrain;
+    public boolean pingpong;
 
     public TagStatus() {
       FamiliarData current = KoLCharacter.getFamiliar();
@@ -5571,6 +5573,12 @@ public class FightRequest extends GenericRequest {
       // If you have lovebugs
       this.lovebugs = Preferences.getBoolean("lovebugsUnlocked");
       this.lovebugProperty = null;
+
+      // If you have a toy train in your workshed
+      AdventureResult workshed = CampgroundRequest.getCurrentWorkshedItem();
+      this.toyTrain = workshed != null && workshed.getItemId() == ItemPool.MODEL_TRAIN_SET;
+
+      this.pingpong = KoLCharacter.hasEquipped(ItemPool.PING_PONG_PADDLE);
 
       this.ghost = null;
 
@@ -6576,6 +6584,7 @@ public class FightRequest extends GenericRequest {
               : FightRequest.parseNormalDamage(str);
       if (damage != 0) {
         FightRequest.handleSpelunky(str, status);
+        FightRequest.handlePingPong(str, status);
         FightRequest.logSpecialDamage(str, status);
         FightRequest.logMonsterAttribute(status, damage, HEALTH);
         MonsterStatusTracker.damageMonster(damage);
@@ -6717,6 +6726,10 @@ public class FightRequest extends GenericRequest {
 
     if (FightRequest.handleSpelunkyGold(image, str, status)) {
       return false;
+    }
+
+    if (status.toyTrain) {
+      FightRequest.handleToyTrain(src, str, status);
     }
 
     // Attempt to identify combat items
@@ -7002,6 +7015,21 @@ public class FightRequest extends GenericRequest {
     return true;
   }
 
+  private static void handleToyTrain(String image, String str, TagStatus status) {
+    if (image == null || !image.contains("modeltrain")) {
+      return;
+    }
+    FightRequest.logText(str, status);
+    status.toyTrain = false;
+  }
+
+  private static void handlePingPong(String str, TagStatus status) {
+    if (status.pingpong && str.contains("+1 Ping-Pong Skill")) {
+      FightRequest.logText("You gain +1 Ping-Pong Skill", status);
+      Preferences.increment("pingpongSkill");
+    }
+  }
+
   private static boolean handleEldritchHorror(TagNode node, TagStatus status) {
     if (!status.eldritchHorror) {
       return false;
@@ -7041,6 +7069,9 @@ public class FightRequest extends GenericRequest {
 
     return false;
   }
+
+  // You toss the ball into the air and whack it with your paddle, nailing your opponent right in
+  // the paddle for 37 damage.<p><b>+1 Ping-Pong Skill</b>
 
   private static boolean handleGlitchMonster(TagStatus status, String str) {
     if (!status.glitch || !status.won) {
