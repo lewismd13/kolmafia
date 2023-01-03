@@ -24,6 +24,7 @@ import net.sourceforge.kolmafia.objectpool.EffectPool;
 import net.sourceforge.kolmafia.objectpool.FamiliarPool;
 import net.sourceforge.kolmafia.objectpool.ItemPool;
 import net.sourceforge.kolmafia.objectpool.OutfitPool;
+import net.sourceforge.kolmafia.objectpool.SkillPool;
 import net.sourceforge.kolmafia.persistence.*;
 import net.sourceforge.kolmafia.persistence.QuestDatabase.Quest;
 import net.sourceforge.kolmafia.preferences.Preferences;
@@ -1600,14 +1601,14 @@ public class QuestManager {
     if (KoLCharacter.inFistcore()) {
       // You can actually get here without knowing Worldpunch
       // in Softcore by pulling ores.
-      if (!KoLCharacter.hasSkill("Worldpunch")) {
+      if (!KoLCharacter.hasSkill(SkillPool.WORLDPUNCH)) {
         KoLmafia.updateDisplay(MafiaState.ABORT, "Try again after you learn Worldpunch.");
         return;
       }
 
       // If you don't have Earthen Fist active, get it.
       if (!KoLConstants.activeEffects.contains(EffectPool.get(EffectPool.EARTHEN_FIST))) {
-        UseSkillRequest request = UseSkillRequest.getInstance("Worldpunch");
+        UseSkillRequest request = UseSkillRequest.getInstance(SkillPool.WORLDPUNCH);
         request.setBuffCount(1);
         RequestThread.postRequest(request);
       }

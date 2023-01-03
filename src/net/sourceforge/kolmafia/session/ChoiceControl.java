@@ -29,6 +29,7 @@ import net.sourceforge.kolmafia.objectpool.EffectPool;
 import net.sourceforge.kolmafia.objectpool.FamiliarPool;
 import net.sourceforge.kolmafia.objectpool.ItemPool;
 import net.sourceforge.kolmafia.objectpool.OutfitPool;
+import net.sourceforge.kolmafia.objectpool.SkillPool;
 import net.sourceforge.kolmafia.persistence.AdventureDatabase;
 import net.sourceforge.kolmafia.persistence.ConcoctionDatabase;
 import net.sourceforge.kolmafia.persistence.DateTimeManager;
@@ -3645,8 +3646,8 @@ public abstract class ChoiceControl {
                 break;
             }
             if (!songChosen.equals("")) {
-              if (!KoLCharacter.hasSkill("Sing Along")) {
-                KoLCharacter.addAvailableSkill("Sing Along");
+              if (!KoLCharacter.hasSkill(SkillPool.SING_ALONG)) {
+                KoLCharacter.addAvailableSkill(SkillPool.SING_ALONG);
               }
               if (!Preferences.getString("boomBoxSong").equals(songChosen)) {
                 Preferences.setString("boomBoxSong", songChosen);
@@ -3656,8 +3657,8 @@ public abstract class ChoiceControl {
                 RequestLogger.updateSessionLog(message);
               }
             } else {
-              if (KoLCharacter.hasSkill("Sing Along")) {
-                KoLCharacter.removeAvailableSkill("Sing Along");
+              if (KoLCharacter.hasSkill(SkillPool.SING_ALONG)) {
+                KoLCharacter.removeAvailableSkill(SkillPool.SING_ALONG);
               }
               if (!Preferences.getString("boomBoxSong").equals("")) {
                 Preferences.setString("boomBoxSong", "");
