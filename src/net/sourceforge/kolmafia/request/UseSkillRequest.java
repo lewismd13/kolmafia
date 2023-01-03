@@ -1059,7 +1059,8 @@ public class UseSkillRequest extends GenericRequest implements Comparable<UseSki
     }
 
     if (this.skillId == SkillPool.SHAKE_IT_OFF
-        || (this.skillId == SkillPool.BITE_MINION && KoLCharacter.hasSkill("Devour Minions"))) {
+        || (this.skillId == SkillPool.BITE_MINION
+            && KoLCharacter.hasSkill(SkillPool.DEVOUR_MINIONS))) {
       boolean cursed =
           KoLConstants.activeEffects.contains(UseSkillRequest.ONCE_CURSED)
               || KoLConstants.activeEffects.contains(UseSkillRequest.TWICE_CURSED)
@@ -1535,6 +1536,10 @@ public class UseSkillRequest extends GenericRequest implements Comparable<UseSki
     return UseSkillRequest.getInstance(skillId, null, 0);
   }
 
+  public static final UseSkillRequest getInstance(final int skillId, final int buffCount) {
+    return UseSkillRequest.getInstance(skillId, null, buffCount);
+  }
+
   public static final UseSkillRequest getInstance(
       final String skillName, final String target, final int buffCount) {
     // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
@@ -1542,6 +1547,7 @@ public class UseSkillRequest extends GenericRequest implements Comparable<UseSki
   }
 
   public static final UseSkillRequest getInstance(String skillName) {
+    // *** Skills can have ambiguous names. Best to use the methods that deal with skill id
     return UseSkillRequest.getInstance(skillName, null, 0);
   }
 
