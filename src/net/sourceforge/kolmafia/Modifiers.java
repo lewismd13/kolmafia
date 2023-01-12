@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import net.sourceforge.kolmafia.KoLConstants.ConsumptionType;
+import net.sourceforge.kolmafia.VYKEACompanionData.VYKEACompanionType;
 import net.sourceforge.kolmafia.listener.PreferenceListenerRegistry;
 import net.sourceforge.kolmafia.maximizer.Maximizer;
 import net.sourceforge.kolmafia.modifiers.BitmapModifier;
@@ -242,9 +243,12 @@ public class Modifiers {
   public static final int POTION_DROP = 142;
   public static final int SAUCE_SPELL_DAMAGE = 143;
   public static final int MONSTER_LEVEL_PERCENT = 144;
-  public static final int BOOZE_FAIRY_WEIGHT = 145;
-  public static final int CANDY_FAIRY_WEIGHT = 146;
-  public static final int FOOD_FAIRY_WEIGHT = 147;
+  public static final int FOOD_FAIRY_WEIGHT = 145;
+  public static final int BOOZE_FAIRY_WEIGHT = 146;
+  public static final int CANDY_FAIRY_WEIGHT = 147;
+  public static final int FOOD_FAIRY_EFFECTIVENESS = 148;
+  public static final int BOOZE_FAIRY_EFFECTIVENESS = 149;
+  public static final int CANDY_FAIRY_EFFECTIVENESS = 150;
   public static final String EXPR = "(?:([-+]?[\\d.]+)|\\[([^]]+)\\])";
 
   private static final DoubleModifier[] doubleModifiers = {
@@ -756,9 +760,15 @@ public class Modifiers {
         "Monster Level Percent",
         Pattern.compile("([+-]\\d+)% Monster Level"),
         Pattern.compile("Monster Level Percent: " + EXPR)),
+    new DoubleModifier("Food Fairy", Pattern.compile("Food Fairy: " + EXPR)),
     new DoubleModifier("Booze Fairy", Pattern.compile("Booze Fairy: " + EXPR)),
     new DoubleModifier("Candy Fairy", Pattern.compile("Candy Fairy: " + EXPR)),
-    new DoubleModifier("Food Fairy", Pattern.compile("Food Fairy: " + EXPR)),
+    new DoubleModifier(
+        "Food Fairy Effectiveness", Pattern.compile("Food Fairy Effectiveness: " + EXPR)),
+    new DoubleModifier(
+        "Booze Fairy Effectiveness", Pattern.compile("Booze Fairy Effectiveness: " + EXPR)),
+    new DoubleModifier(
+        "Candy Fairy Effectiveness", Pattern.compile("Candy Fairy Effectiveness: " + EXPR)),
   };
 
   public static final int DOUBLE_MODIFIERS = Modifiers.doubleModifiers.length;
@@ -2792,13 +2802,34 @@ public class Modifiers {
           race);
     }
 
-    this.addFairyEffect(familiar, weight, cappedWeight, Modifiers.FAIRY_WEIGHT, Modifiers.ITEMDROP);
     this.addFairyEffect(
-        familiar, weight, cappedWeight, Modifiers.BOOZE_FAIRY_WEIGHT, Modifiers.BOOZEDROP);
+        familiar,
+        weight,
+        cappedWeight,
+        Modifiers.FAIRY_WEIGHT,
+        Modifiers.FAIRY_EFFECTIVENESS,
+        Modifiers.ITEMDROP);
     this.addFairyEffect(
-        familiar, weight, cappedWeight, Modifiers.CANDY_FAIRY_WEIGHT, Modifiers.CANDYDROP);
+        familiar,
+        weight,
+        cappedWeight,
+        Modifiers.FOOD_FAIRY_WEIGHT,
+        Modifiers.FOOD_FAIRY_EFFECTIVENESS,
+        Modifiers.FOODDROP);
     this.addFairyEffect(
-        familiar, weight, cappedWeight, Modifiers.FOOD_FAIRY_WEIGHT, Modifiers.FOODDROP);
+        familiar,
+        weight,
+        cappedWeight,
+        Modifiers.BOOZE_FAIRY_WEIGHT,
+        Modifiers.BOOZE_FAIRY_EFFECTIVENESS,
+        Modifiers.BOOZEDROP);
+    this.addFairyEffect(
+        familiar,
+        weight,
+        cappedWeight,
+        Modifiers.CANDY_FAIRY_WEIGHT,
+        Modifiers.CANDY_FAIRY_EFFECTIVENESS,
+        Modifiers.CANDYDROP);
 
     if (FamiliarDatabase.isUnderwaterType(familiarId)) {
       this.setBoolean(Modifiers.UNDERWATER_FAMILIAR, true);
@@ -2826,6 +2857,7 @@ public class Modifiers {
       final int weight,
       final int cappedWeight,
       final int fairyModifier,
+      final int effectivenessModifier,
       final int modifier) {
     var effective = cappedWeight * this.get(fairyModifier);
 
@@ -2836,7 +2868,7 @@ public class Modifiers {
 
     if (effective == 0.0) return;
 
-    double factor = this.get(Modifiers.FAIRY_EFFECTIVENESS);
+    double factor = this.get(effectivenessModifier);
     // The 0->1 factor for generic familiars conflicts with the JitB
     if (factor == 0.0 && familiar.getId() != FamiliarPool.JACK_IN_THE_BOX) factor = 1.0;
 
@@ -2918,13 +2950,11 @@ public class Modifiers {
   }
 
   public void applyCompanionModifiers(VYKEACompanionData companion) {
-    int type = companion.getType();
+    VYKEACompanionType type = companion.getType();
     int level = companion.getLevel();
     switch (type) {
-      case VYKEACompanionData.LAMP -> this.addDouble(
-          Modifiers.ITEMDROP, level * 10, ModifierType.VYKEA, "Lamp");
-      case VYKEACompanionData.COUCH -> this.addDouble(
-          Modifiers.MEATDROP, level * 10, ModifierType.VYKEA, "Couch");
+      case LAMP -> this.addDouble(Modifiers.ITEMDROP, level * 10, ModifierType.VYKEA, "Lamp");
+      case COUCH -> this.addDouble(Modifiers.MEATDROP, level * 10, ModifierType.VYKEA, "Couch");
     }
   }
 
