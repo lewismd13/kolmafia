@@ -102,8 +102,17 @@ public abstract class KoLCharacter {
   public static final String STORM_BLESSING = "Storm";
   public static final String SHE_WHO_WAS_BLESSING = "She-who-was";
 
-  public static final int MALE = -1;
-  public static final int FEMALE = 1;
+  public enum Gender {
+    UNKNOWN(0),
+    MALE(-1),
+    FEMALE(1);
+
+    public final int modifierValue;
+
+    Gender(int modifierValue) {
+      this.modifierValue = modifierValue;
+    }
+  }
 
   // Create this early before subsequent initializers want to look at it.
   private static final Modifiers currentModifiers = new Modifiers();
@@ -130,7 +139,7 @@ public abstract class KoLCharacter {
 
   private static List<String> avatar = Collections.emptyList();
   private static AscensionClass ascensionClass = null;
-  private static int gender = 0;
+  private static Gender gender = Gender.UNKNOWN;
   public static int AWOLtattoo = 0;
 
   private static int currentLevel = 1;
@@ -302,7 +311,7 @@ public abstract class KoLCharacter {
   public static final void reset(boolean newCharacter) {
     KoLCharacter.ascensionClass = null;
 
-    KoLCharacter.gender = 0;
+    KoLCharacter.gender = Gender.UNKNOWN;
     KoLCharacter.currentLevel = 1;
     KoLCharacter.decrementPrime = 0L;
     KoLCharacter.incrementPrime = 25L;
@@ -857,7 +866,7 @@ public abstract class KoLCharacter {
     }
 
     if (female) {
-      KoLCharacter.setGender(KoLCharacter.FEMALE);
+      KoLCharacter.setGender(Gender.FEMALE);
     } else {
       // Unfortunately, lack of '_f' in the avatar doesn't
       // necessarily indicate a male character - it could be a custom
@@ -877,10 +886,10 @@ public abstract class KoLCharacter {
     return KoLCharacter.avatar;
   }
 
-  private static int setGender() {
+  private static Gender setGender() {
     // If we already know our gender, are in Valhalla (where gender
     // is meaningless), or are not logged in (ditto), nothing to do
-    if (KoLCharacter.gender != 0
+    if (KoLCharacter.gender != Gender.UNKNOWN
         || CharPaneRequest.inValhalla()
         || GenericRequest.passwordHash.isEmpty()) {
       return KoLCharacter.gender;
@@ -891,18 +900,17 @@ public abstract class KoLCharacter {
     GenericRequest req = new GenericRequest("desc_item.php?whichitem=" + descId);
     RequestThread.postRequest(req);
     if (req.responseText != null) {
-      KoLCharacter.gender =
-          req.responseText.contains("+15%") ? KoLCharacter.FEMALE : KoLCharacter.MALE;
+      KoLCharacter.gender = req.responseText.contains("+15%") ? Gender.FEMALE : Gender.MALE;
     }
 
     return KoLCharacter.gender;
   }
 
-  public static final void setGender(final int gender) {
+  public static final void setGender(final Gender gender) {
     KoLCharacter.gender = gender;
   }
 
-  public static final int getGender() {
+  public static final Gender getGender() {
     return KoLCharacter.setGender();
   }
 
@@ -3826,7 +3834,7 @@ public abstract class KoLCharacter {
     PreferenceListenerRegistry.firePreferenceChanged("(skill)");
 
     switch (SkillDatabase.getSkillType(skillId)) {
-      case SkillDatabase.PASSIVE -> {
+      case PASSIVE -> {
         switch (skillId) {
           case SkillPool.FLAVOUR_OF_MAGIC:
             // Flavour of Magic gives you access to five other
@@ -3898,52 +3906,51 @@ public abstract class KoLCharacter {
             break;
         }
       }
-      case SkillDatabase.SUMMON -> {
+      case SUMMON -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.summoningSkills.add(skill);
         LockableListFactory.sort(KoLConstants.summoningSkills);
       }
-      case SkillDatabase.REMEDY -> {
+      case REMEDY -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.remedySkills.add(skill);
         LockableListFactory.sort(KoLConstants.remedySkills);
       }
-      case SkillDatabase.SELF_ONLY -> {
+      case SELF_ONLY -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.selfOnlySkills.add(skill);
         LockableListFactory.sort(KoLConstants.selfOnlySkills);
       }
-      case SkillDatabase.BUFF -> {
+      case BUFF -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.buffSkills.add(skill);
         LockableListFactory.sort(KoLConstants.buffSkills);
       }
-      case SkillDatabase.SONG -> {
+      case SONG -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.songSkills.add(skill);
         LockableListFactory.sort(KoLConstants.songSkills);
       }
-      case SkillDatabase.COMBAT -> KoLCharacter.addCombatSkill(skill.getSkillName());
-      case SkillDatabase.COMBAT_NONCOMBAT_REMEDY -> {
+      case COMBAT, COMBAT_PASSIVE -> KoLCharacter.addCombatSkill(skill.getSkillName());
+      case COMBAT_NONCOMBAT_REMEDY -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.remedySkills.add(skill);
         LockableListFactory.sort(KoLConstants.remedySkills);
         KoLCharacter.addCombatSkill(skill.getSkillName());
       }
-      case SkillDatabase.COMBAT_PASSIVE -> KoLCharacter.addCombatSkill(skill.getSkillName());
-      case SkillDatabase.EXPRESSION -> {
+      case EXPRESSION -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.expressionSkills.add(skill);
         LockableListFactory.sort(KoLConstants.expressionSkills);
       }
-      case SkillDatabase.WALK -> {
+      case WALK -> {
         KoLConstants.usableSkills.add(skill);
         LockableListFactory.sort(KoLConstants.usableSkills);
         KoLConstants.walkSkills.add(skill);
