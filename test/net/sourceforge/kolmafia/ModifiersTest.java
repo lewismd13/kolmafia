@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.java.dev.spellcast.utilities.DataUtilities;
 import net.sourceforge.kolmafia.AscensionPath.Path;
+import net.sourceforge.kolmafia.modifiers.BitmapModifier;
+import net.sourceforge.kolmafia.modifiers.BooleanModifier;
 import net.sourceforge.kolmafia.modifiers.DerivedModifier;
 import net.sourceforge.kolmafia.modifiers.DoubleModifier;
 import net.sourceforge.kolmafia.objectpool.EffectPool;
@@ -77,7 +79,7 @@ public class ModifiersTest {
       assertEquals(0, mods.get(DoubleModifier.DAMAGE_REDUCTION));
       assertEquals(0, mods.get(DoubleModifier.FAMILIAR_WEIGHT));
       assertEquals(0, mods.get(DoubleModifier.RANGED_DAMAGE));
-      assertFalse(mods.getBoolean(Modifiers.FOUR_SONGS));
+      assertFalse(mods.getBoolean(BooleanModifier.FOUR_SONGS));
       assertEquals(0, mods.get(DoubleModifier.COMBAT_MANA_COST));
     }
   }
@@ -126,7 +128,7 @@ public class ModifiersTest {
       int manualMask = 0;
       for (String piece : name.split("/")) {
         Modifiers mods = Modifiers.getModifiers(ModifierType.ITEM, piece);
-        manualMask |= mods.getRawBitmap(Modifiers.SYNERGETIC);
+        manualMask |= mods.getRawBitmap(BitmapModifier.SYNERGETIC);
       }
 
       assertEquals(manualMask, mask, name);
