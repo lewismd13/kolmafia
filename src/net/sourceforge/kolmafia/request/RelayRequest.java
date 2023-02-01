@@ -28,8 +28,6 @@ import net.sourceforge.kolmafia.KoLConstants.ConsumptionType;
 import net.sourceforge.kolmafia.KoLmafia;
 import net.sourceforge.kolmafia.KoLmafiaASH;
 import net.sourceforge.kolmafia.ModifierType;
-import net.sourceforge.kolmafia.Modifiers;
-import net.sourceforge.kolmafia.Modifiers.ModifierList;
 import net.sourceforge.kolmafia.RequestEditorKit;
 import net.sourceforge.kolmafia.SpecialOutfit;
 import net.sourceforge.kolmafia.StaticEntity;
@@ -40,6 +38,8 @@ import net.sourceforge.kolmafia.chat.ChatPoller;
 import net.sourceforge.kolmafia.chat.ChatSender;
 import net.sourceforge.kolmafia.chat.HistoryEntry;
 import net.sourceforge.kolmafia.chat.SentMessageEntry;
+import net.sourceforge.kolmafia.modifiers.Lookup;
+import net.sourceforge.kolmafia.modifiers.ModifierList;
 import net.sourceforge.kolmafia.moods.MoodManager;
 import net.sourceforge.kolmafia.moods.RecoveryManager;
 import net.sourceforge.kolmafia.objectpool.AdventurePool;
@@ -53,6 +53,7 @@ import net.sourceforge.kolmafia.persistence.EffectDatabase;
 import net.sourceforge.kolmafia.persistence.EquipmentDatabase;
 import net.sourceforge.kolmafia.persistence.FamiliarDatabase;
 import net.sourceforge.kolmafia.persistence.ItemDatabase;
+import net.sourceforge.kolmafia.persistence.ModifierDatabase;
 import net.sourceforge.kolmafia.persistence.NPCStoreDatabase;
 import net.sourceforge.kolmafia.persistence.QuestDatabase;
 import net.sourceforge.kolmafia.persistence.QuestDatabase.Quest;
@@ -127,7 +128,7 @@ public class RelayRequest extends PasswordHashRequest {
   private static final String CONFIRM_COLOSSEUM = "confirm13";
   private static final String CONFIRM_GREMLINS = "confirm14";
   private static final String CONFIRM_HARDCOREPVP = "confirm15";
-  private static final String CONFIRM_DESERT_UNHYDRATED = "confirm16";
+  public static final String CONFIRM_DESERT_UNHYDRATED = "confirm16";
   public static final String CONFIRM_MOHAWK_WIG = "confirm17";
   private static final String CONFIRM_CELLAR = "confirm18";
   private static final String CONFIRM_BOILER = "confirm19";
@@ -145,7 +146,7 @@ public class RelayRequest extends PasswordHashRequest {
   public static final String CONFIRM_DESERT_WEAPON = "confirm31";
 
   private static boolean ignoreBoringDoorsWarning = false;
-  private static boolean ignoreDesertWarning = false;
+  public static boolean ignoreDesertWarning = false;
   public static boolean ignoreDesertWeaponWarning = false;
   private static boolean ignoreDesertOffhandWarning = false;
   public static boolean ignoreMacheteWarning = false;
@@ -1430,7 +1431,7 @@ public class RelayRequest extends PasswordHashRequest {
     return true;
   }
 
-  private boolean sendUnhydratedDesertWarning() {
+  public boolean sendUnhydratedDesertWarning() {
     // Only send this warning once per session
     if (RelayRequest.ignoreDesertWarning) {
       return false;
@@ -1448,9 +1449,14 @@ public class RelayRequest extends PasswordHashRequest {
       return false;
     }
 
-    // Either The Oasis isn't open, or all reason to care about hydration is gone
+    // If The Oasis isn't open, exploring the first time will hydrate and open it
+    if (!Preferences.getBoolean("oasisAvailable")) {
+      return false;
+    }
+
+    // If the desert is fully explored, no reason to care about hydration
     int explored = Preferences.getInteger("desertExploration");
-    if (explored == 0 || explored == 100) {
+    if (explored == 100) {
       return false;
     }
 
@@ -2417,7 +2423,7 @@ public class RelayRequest extends PasswordHashRequest {
     // Perform the same adjustments to the displayed modifiers as
     // the Gear Changer, except leave Familiar Effect if you own
     // the relevant familiar.
-    ModifierList list = Modifiers.getModifierList(new Modifiers.Lookup(ModifierType.ITEM, itemId));
+    ModifierList list = ModifierDatabase.getModifierList(new Lookup(ModifierType.ITEM, itemId));
     list.removeModifier("Wiki Name");
     list.removeModifier("Modifiers");
     list.removeModifier("Outfit");
