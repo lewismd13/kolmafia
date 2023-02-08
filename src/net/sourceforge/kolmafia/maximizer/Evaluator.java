@@ -923,19 +923,24 @@ public class Evaluator {
     return !this.noTiebreaker;
   }
 
-  int checkConstraints(Modifiers mods) {
-    // Return value:
-    //	-1: item violates a constraint, don't use it
-    //	0: item not relevant to any constraints
-    //	1: item meets a constraint, give it special handling
-    if (mods == null) return 0;
-    EnumSet<BooleanModifier> bools = mods.getBooleans(this.booleanMask);
-    if (!this.booleanValue.containsAll(bools)) return -1;
-    if (bools.size() != 0) return 1;
-    return 0;
+  enum Constraint {
+    /** Item violates a constraint, don't use it */
+    VIOLATES,
+    /** Item not relevant to any constraints */
+    IRRELEVANT,
+    /** Item meets a constraint, give it special handling */
+    MEETS
   }
 
-  public static boolean checkEffectConstraints(int effectId) {
+  Constraint checkConstraints(Modifiers mods) {
+    if (mods == null) return Constraint.IRRELEVANT;
+    EnumSet<BooleanModifier> bools = mods.getBooleans(this.booleanMask);
+    if (!this.booleanValue.containsAll(bools)) return Constraint.VIOLATES;
+    if (bools.size() != 0) return Constraint.MEETS;
+    return Constraint.IRRELEVANT;
+  }
+
+  public static boolean cannotGainEffect(int effectId) {
     // Return true if effect cannot be gained due to current other effects or class
     return switch (effectId) {
       case EffectPool.NEARLY_SILENT_HUNTING -> KoLCharacter.isSealClubber();
@@ -1000,16 +1005,11 @@ public class Evaluator {
 
   void enumerateEquipment(int equipScope, int maxPrice, int priceLevel)
       throws MaximizerInterruptedException {
-    int slots = EquipmentManager.ALL_SLOTS + this.familiars.size();
     // Items automatically considered regardless of their score -
     // synergies, hobo power, brimstone, etc.
-    List<List<CheckedItem>> automatic = new ArrayList<>(slots);
+    SlotList<CheckedItem> automatic = new SlotList<>(this.familiars.size());
     // Items to be considered based on their score
-    List<List<CheckedItem>> ranked = new ArrayList<>(slots);
-    for (int i = 0; i < slots; ++i) {
-      automatic.add(new ArrayList<>());
-      ranked.add(new ArrayList<>());
-    }
+    SlotList<CheckedItem> ranked = new SlotList<>(this.familiars.size());
 
     double nullScore = this.getScore(new Modifiers());
 
@@ -1029,9 +1029,9 @@ public class Evaluator {
       if (mods == null) continue;
 
       switch (this.checkConstraints(mods)) {
-        case -1:
+        case VIOLATES:
           continue;
-        case 0:
+        case IRRELEVANT:
           // intentionally not including outfit.getPieces() because this is
           // only rating whether the outfit itself is useful, not its pieces
           double delta = this.getScore(mods) - nullScore;
@@ -1140,9 +1140,9 @@ public class Evaluator {
         item = new CheckedItem(id, equipScope, maxPrice, priceLevel);
 
         switch (this.checkConstraints(familiarMods)) {
-          case -1:
+          case VIOLATES:
             continue;
-          case 1:
+          case MEETS:
             item.automaticFlag = true;
         }
 
@@ -1176,9 +1176,9 @@ public class Evaluator {
         }
 
         switch (this.checkConstraints(familiarMods)) {
-          case -1:
+          case VIOLATES:
             continue;
-          case 1:
+          case MEETS:
             item.automaticFlag = true;
         }
 
@@ -1188,7 +1188,7 @@ public class Evaluator {
 
         if (item.getCount() != 0
             && (this.getScore(familiarMods) - nullScore > 0.0 || item.automaticFlag == true)) {
-          ranked.get(EquipmentManager.ALL_SLOTS + f).add(item);
+          ranked.getFamiliar(f).add(item);
         }
       }
 
@@ -1462,9 +1462,9 @@ public class Evaluator {
         }
 
         switch (this.checkConstraints(mods)) {
-          case -1:
+          case VIOLATES:
             continue;
-          case 1:
+          case MEETS:
             item.automaticFlag = true;
             break gotItem;
         }
@@ -1674,10 +1674,7 @@ public class Evaluator {
                       return bestMode;
                     }));
 
-    List<List<MaximizerSpeculation>> speculationList = new ArrayList<>(ranked.size());
-    for (int i = 0; i < ranked.size(); ++i) {
-      speculationList.add(new ArrayList<>());
-    }
+    SlotList<MaximizerSpeculation> speculationList = new SlotList<>(this.familiars.size());
 
     for (int slot = 0; slot < ranked.size(); ++slot) {
       List<CheckedItem> checkedItemList = ranked.get(slot);
