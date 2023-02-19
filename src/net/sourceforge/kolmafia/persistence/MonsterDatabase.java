@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import net.sourceforge.kolmafia.AdventureResult;
+import net.sourceforge.kolmafia.AscensionClass;
 import net.sourceforge.kolmafia.AscensionPath.Path;
 import net.sourceforge.kolmafia.KoLCharacter;
 import net.sourceforge.kolmafia.KoLConstants;
@@ -37,6 +38,8 @@ public class MonsterDatabase {
   private static String[] MONSTER_STRINGS = null;
   private static final Map<String, MonsterData> MONSTER_IMAGES = new TreeMap<>();
   private static final Map<String, Map<MonsterData, MonsterData>> MONSTER_PATH_MAP =
+      new TreeMap<>();
+  private static final Map<String, Map<MonsterData, MonsterData>> MONSTER_CLASS_MAP =
       new TreeMap<>();
 
   // For handling duplicate monster and substring match of monster names
@@ -350,10 +353,43 @@ public class MonsterDatabase {
     MonsterDatabase.addMapping(dinoMap, "The Man", "Oligarcheopteryx");
     MonsterDatabase.addMapping(dinoMap, "Naughty Sorceress", "Naughty Saursaurus");
     MonsterDatabase.MONSTER_PATH_MAP.put(Path.DINOSAURS.getName(), dinoMap);
+
+    Map<MonsterData, MonsterData> aosolMap = new TreeMap<>();
+    MonsterDatabase.addMapping(aosolMap, "Boss Bat", "two-headed shadow bat");
+    MonsterDatabase.addMapping(aosolMap, "Knob Goblin King", "goblin king's shadow");
+    MonsterDatabase.addMapping(aosolMap, "Bonerdagon", "shadowboner shadowdagon");
+    MonsterDatabase.addMapping(aosolMap, "Groar", "shadow of groar");
+    MonsterDatabase.addMapping(aosolMap, "Dr. Awkward", "W. Odah's Shadow");
+    MonsterDatabase.addMapping(aosolMap, "Lord Spookyraven", "shadow Lord Spookyraven");
+    MonsterDatabase.addMapping(aosolMap, "Protector Spectre", "corruptor shadow");
+    MonsterDatabase.addMapping(aosolMap, "The Big Wisniewski", "shadow of the 1960s");
+    MonsterDatabase.addMapping(aosolMap, "The Man", "shadow of the 1980s");
+    MonsterDatabase.MONSTER_PATH_MAP.put(Path.SHADOWS_OVER_LOATHING.getName(), aosolMap);
+
+    Map<MonsterData, MonsterData> pigSkinnerMap = new TreeMap<>();
+    MonsterDatabase.addMapping(pigSkinnerMap, "Naughty Sorceress", "General Bruise");
+    MonsterDatabase.addMapping(
+        pigSkinnerMap, "Naughty Sorceress (2)", "General Bruise (true form)");
+    MonsterDatabase.MONSTER_CLASS_MAP.put(AscensionClass.PIG_SKINNER.getName(), pigSkinnerMap);
+
+    Map<MonsterData, MonsterData> cheeseWizardMap = new TreeMap<>();
+    MonsterDatabase.addMapping(cheeseWizardMap, "Naughty Sorceress", "Dark Noël");
+    MonsterDatabase.addMapping(cheeseWizardMap, "Naughty Sorceress (2)", "Dark Noël (true form)");
+    MonsterDatabase.MONSTER_CLASS_MAP.put(AscensionClass.CHEESE_WIZARD.getName(), cheeseWizardMap);
+
+    Map<MonsterData, MonsterData> jazzAgentMap = new TreeMap<>();
+    MonsterDatabase.addMapping(jazzAgentMap, "Naughty Sorceress", "Terrence Poindexter");
+    MonsterDatabase.addMapping(
+        jazzAgentMap, "Naughty Sorceress (2)", "Terrence Poindexter (true form)");
+    MonsterDatabase.MONSTER_CLASS_MAP.put(AscensionClass.JAZZ_AGENT.getName(), jazzAgentMap);
   }
 
   public static Map<MonsterData, MonsterData> getMonsterPathMap(final String path) {
     return MonsterDatabase.MONSTER_PATH_MAP.get(path);
+  }
+
+  public static Map<MonsterData, MonsterData> getMonsterClassMap(final String clazz) {
+    return MonsterDatabase.MONSTER_CLASS_MAP.get(clazz);
   }
 
   public static final void refreshMonsterTable() {
