@@ -170,6 +170,7 @@ global	_gitUpdated	false
 global	_svnRepoFileFetched	false
 global	_svnUpdated	false
 
+user	8BitBonusTurns	0
 user	8BitScore	0
 user	8BitColor	
 user	addingScrolls	1
@@ -1676,6 +1677,7 @@ user	_cheerleaderSteam	200
 user	_chestXRayUsed	0
 user	_chipBags	0
 user	_chocolateCigarsUsed	0
+user	_chocolateCoveredPingPongBallsUsed	0
 user	_chocolateSculpturesUsed	0
 user	_chocolatesUsed	0
 user	_chronerCrossUsed	false
@@ -2128,6 +2130,7 @@ user	_sealsSummoned	0
 user	_setOfJacksUsed	false
 user	_sewingKitUsed	false
 user	_sexChanged	false
+user	_shadowAffinityToday	false
 user	_shadowBricksUsed	0
 user	_shadowForestLooted	false
 user	_shadowRiftCombats	0
