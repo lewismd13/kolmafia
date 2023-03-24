@@ -138,7 +138,14 @@ public class GitManager extends ScriptManager {
 
       RequestLogger.printLine("Updating project " + folder);
       try {
-        git.pull().setProgressMonitor(new MafiaProgressMonitor()).setRebase(true).call();
+        if (!rebase(folder, git)) {
+          KoLmafia.updateDisplay(
+              MafiaState.ERROR,
+              "Failed to update project "
+                  + folder
+                  + ": rebase error. Perhaps there are local changes we are unable to automatically reconcile. Consider deleting and re-installing project");
+          return false;
+        }
       } catch (GitAPIException e) {
         KoLmafia.updateDisplay(MafiaState.ERROR, "Failed to update project " + folder + ": " + e);
         return false;
@@ -208,6 +215,24 @@ public class GitManager extends ScriptManager {
       if (checkDependencies) {
         installDependencies(newRoot.resolve(DEPENDENCIES));
       }
+    }
+    return true;
+  }
+
+  private static boolean rebase(String folder, Git git) throws GitAPIException {
+    var result = git.pull().setProgressMonitor(new MafiaProgressMonitor()).setRebase(true).call();
+    if (!result.getRebaseResult().getStatus().isSuccessful()) {
+      // the rebase failed. Does the user have any local changes?
+      var hasLocal = git.diff().call().size() != 0;
+      if (!hasLocal) return false;
+      KoLmafia.updateDisplay("Detected local changes in " + folder + ". Attempting to merge.");
+      // add all files
+      git.add().addFilepattern(".").call();
+      // make a commit
+      git.commit().setMessage("local changes").setAuthor("KoLMafia", "KoLMafia@localhost").call();
+      // try to rebase again
+      result = git.pull().setProgressMonitor(new MafiaProgressMonitor()).setRebase(true).call();
+      return result.getRebaseResult().getStatus().isSuccessful();
     }
     return true;
   }
@@ -410,14 +435,21 @@ public class GitManager extends ScriptManager {
       KoLmafia.updateDisplay(MafiaState.ERROR, "Failed to sync project " + folder + ": " + e);
       return false;
     }
+    IOException lastError = null;
     for (var absPath : toAdd) {
       try {
         var toRel = root.relativize(absPath);
         copyPath(absPath, toRel);
       } catch (IOException e) {
-        KoLmafia.updateDisplay(MafiaState.ERROR, "Failed to sync project " + folder + ": " + e);
-        return false;
+        // other files might succeed, so keep going
+        lastError = e;
+        continue;
       }
+    }
+    if (lastError != null) {
+      KoLmafia.updateDisplay(
+          MafiaState.ERROR, "Failed to sync project " + folder + ": " + lastError);
+      return false;
     }
     var deps = root.resolve(DEPENDENCIES);
     if (Files.exists(deps)) {
