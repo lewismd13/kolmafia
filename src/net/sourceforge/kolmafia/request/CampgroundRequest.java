@@ -29,6 +29,8 @@ public class CampgroundRequest extends GenericRequest {
           "Summon (Candy Heart|Party Favor|Love Song|BRICKOs|Dice|Resolutions|Taffy) *.[(]([\\d,]+) MP[)]");
   private static final Pattern HOUSING_PATTERN =
       Pattern.compile("/rest([\\da-z])(tp)?(_free)?.gif");
+  private static final Pattern CINCHO_LOOSEN_PATTERN =
+      Pattern.compile("your cincho loosens (\\d+)%");
   private static final Pattern FURNISHING_PATTERN = Pattern.compile("<b>(?:an? )?(.*?)</b>");
 
   private static final Pattern JUNG_PATTERN = Pattern.compile("junggate_(\\d)");
@@ -928,6 +930,14 @@ public class CampgroundRequest extends GenericRequest {
     return action != null && (action.equals("workshed") || action.equals("terminal"));
   }
 
+  public static void handleCinchoRest(final String responseText) {
+    var m = CINCHO_LOOSEN_PATTERN.matcher(responseText);
+    if (m.find()) {
+      Preferences.decrement("_cinchUsed", StringUtilities.parseInt(m.group(1)), 0);
+      Preferences.increment("_cinchoRests");
+    }
+  }
+
   public static void parseResponse(final String urlString, final String responseText) {
     // Workshed may redirect to shop.php
     if (urlString.startsWith("shop.php")) {
@@ -1041,7 +1051,9 @@ public class CampgroundRequest extends GenericRequest {
         Preferences.decrement("_nightmareFuelCharges");
       }
 
-      Matcher m = HOUSING_PATTERN.matcher(responseText);
+      handleCinchoRest(responseText);
+
+      var m = HOUSING_PATTERN.matcher(responseText);
       if (m.find()) {
         KoLCharacter.updateFreeRests(m.group(3) != null);
       }
