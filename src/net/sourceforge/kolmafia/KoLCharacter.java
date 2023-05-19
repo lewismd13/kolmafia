@@ -1758,6 +1758,8 @@ public abstract class KoLCharacter {
         || KoLCharacter.hasEquipped(ItemPool.MOTHERS_NECKLACE)) freerests += 5;
     if (InventoryManager.getCount(ItemPool.CINCHO_DE_MAYO) > 0
         || KoLCharacter.hasEquipped(ItemPool.CINCHO_DE_MAYO)) freerests += 3;
+    if (InventoryManager.getCount(ItemPool.REPLICA_CINCHO_DE_MAYO) > 0
+        || KoLCharacter.hasEquipped(ItemPool.REPLICA_CINCHO_DE_MAYO)) freerests += 3;
     return freerests;
   }
 
@@ -3447,6 +3449,10 @@ public abstract class KoLCharacter {
 
   public static final boolean inShadowsOverLoathing() {
     return KoLCharacter.ascensionPath == Path.SHADOWS_OVER_LOATHING;
+  }
+
+  public static final boolean inLegacyOfLoathing() {
+    return KoLCharacter.ascensionPath == Path.LEGACY_OF_LOATHING;
   }
 
   public static final boolean isUnarmed() {
