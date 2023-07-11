@@ -2237,6 +2237,8 @@ public class FightRequest extends GenericRequest {
       } else if (EncounterManager.isGregariousEncounter(responseText)) {
         EncounterManager.ignoreSpecialMonsters();
         Preferences.decrement("beGregariousFightsLeft", 1, 0);
+      } else if (EncounterManager.isRedWhiteBlueMonster(responseText)) {
+        Preferences.decrement("rwbMonsterCount", 1, 0);
       } else if (EncounterManager.isSaberForceMonster()) {
         // This is earlier in the chain than the things above, but since
         // there's no message it's easiest to check it after
@@ -2616,6 +2618,7 @@ public class FightRequest extends GenericRequest {
     var limitmode = KoLCharacter.getLimitMode();
     boolean finalRound = macroMatcher.end() == FightRequest.lastResponseText.length();
     boolean won = finalRound && responseText.contains("<!--WINWINWIN-->");
+    boolean lost = finalRound && responseText.contains("<!--LOSELOSELOSE-->");
     KoLAdventure location = KoLAdventure.lastVisitedLocation();
     String locationName = (location != null) ? location.getAdventureName() : null;
 
@@ -2992,7 +2995,7 @@ public class FightRequest extends GenericRequest {
       return;
     }
 
-    updateFinalRoundData(responseText, won);
+    updateFinalRoundData(responseText, won, lost);
   }
 
   static String[] ROBORTENDER_DROP_MESSAGES =
@@ -3019,7 +3022,8 @@ public class FightRequest extends GenericRequest {
   // FightRequest.lastResponseText instead.
   // Note that this is not run if the combat is finished by
   // rollover-runaway, saber, or similar mechanic.
-  public static void updateFinalRoundData(final String responseText, final boolean won) {
+  public static void updateFinalRoundData(
+      final String responseText, final boolean won, final boolean lost) {
     MonsterData monster = MonsterStatusTracker.getLastMonster();
     String monsterName = monster != null ? monster.getName() : "";
     SpecialMonster special = FightRequest.specialMonsterCategory(monsterName);
@@ -3449,6 +3453,7 @@ public class FightRequest extends GenericRequest {
     }
 
     Preferences.setBoolean("_lastCombatWon", won);
+    Preferences.setBoolean("_lastCombatLost", lost);
 
     if (!won) {
       QuestManager.updateQuestFightLost(responseText, monsterName);
@@ -10229,6 +10234,18 @@ public class FightRequest extends GenericRequest {
         break;
       case SkillPool.DO_EPIC_MCTWIST:
         if (responseText.contains("degrees in the air while performing")) {
+          skillSuccess = true;
+        }
+        break;
+
+      case SkillPool.RED_WHITE_BLUE_BLAST:
+        if (responseText.contains("fires off a thrilling, patriotic")) {
+          Preferences.setString("rwbMonster", MonsterStatusTracker.getLastMonsterName());
+          Preferences.setInteger("rwbMonsterCount", 3);
+          KoLAdventure lastLocation = KoLAdventure.lastVisitedLocation();
+          if (lastLocation != null) {
+            Preferences.setString("rwbLocation", lastLocation.getAdventureName());
+          }
           skillSuccess = true;
         }
         break;
