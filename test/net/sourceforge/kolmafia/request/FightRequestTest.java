@@ -1144,6 +1144,17 @@ public class FightRequestTest {
   }
 
   @Test
+  public void canDetectCartography() {
+    RequestLoggerOutput.startStream();
+    var cleanups = new Cleanups(withSkill(SkillPool.COMPREHENSIVE_CARTOGRAPHY));
+    try (cleanups) {
+      parseCombatData("request/test_barrow_wraith_win.html");
+      var text = RequestLoggerOutput.stopStream();
+      assertThat(text, containsString("\"Aroma of Juniper,\" was the label in this region."));
+    }
+  }
+
+  @Test
   public void canDetectPowerfulGloveCharge() {
     var cleanups =
         new Cleanups(
@@ -2331,6 +2342,38 @@ public class FightRequestTest {
         parseCombatData("request/test_fight_recall_circadian_adv.html", "fight.php?action=attack");
 
         assertThat("_circadianRhythmsAdventures", isSetTo(4));
+      }
+    }
+  }
+
+  @Nested
+  class JustTheFacts {
+    @Test
+    public void canDetectFactsDrops() {
+      RequestLoggerOutput.startStream();
+      var cleanups = new Cleanups(withSkill(SkillPool.JUST_THE_FACTS));
+      try (cleanups) {
+        parseCombatData("request/test_fight_recall_circadian_adv.html");
+        var text = RequestLoggerOutput.stopStream();
+        assertThat(
+            text,
+            containsString(
+                "These monsters have vestigial organ that collects things they can't digest.\nYou acquire an item: foon"));
+        assertThat(text, containsString("sleep a bit better tonight"));
+      }
+    }
+
+    @Test
+    public void doesNotLogCircadianFailures() {
+      RequestLoggerOutput.startStream();
+      var cleanups =
+          new Cleanups(
+              withSkill(SkillPool.JUST_THE_FACTS),
+              withEffect(EffectPool.RECALLING_CIRCADIAN_RHYTHMS));
+      try (cleanups) {
+        parseCombatData("request/test_fight_recall_circadian_wrong_monster.html");
+        var text = RequestLoggerOutput.stopStream();
+        assertThat(text, not(containsString("rythm")));
       }
     }
   }
