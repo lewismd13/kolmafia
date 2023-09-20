@@ -49,7 +49,6 @@ import net.sourceforge.kolmafia.request.CampgroundRequest;
 import net.sourceforge.kolmafia.request.CharPaneRequest;
 import net.sourceforge.kolmafia.request.CharPaneRequest.Companion;
 import net.sourceforge.kolmafia.request.CharSheetRequest;
-import net.sourceforge.kolmafia.request.ChateauRequest;
 import net.sourceforge.kolmafia.request.ChezSnooteeRequest;
 import net.sourceforge.kolmafia.request.ClanLoungeRequest;
 import net.sourceforge.kolmafia.request.DwarfFactoryRequest;
@@ -557,23 +556,32 @@ public abstract class KoLCharacter {
     return true;
   }
 
+  private static int getCapacity(
+      final Function<AscensionClass, Integer> classCapacity,
+      final Function<Path, Integer> pathCapacity,
+      final Modifier capacityModifier) {
+    Integer baseCapacity = null;
+
+    if (ascensionClass != null) {
+      baseCapacity = classCapacity.apply(ascensionClass);
+    }
+
+    if (baseCapacity == null) {
+      baseCapacity = pathCapacity.apply(ascensionPath);
+    }
+
+    return baseCapacity + (int) KoLCharacter.currentNumericModifier(capacityModifier);
+  }
+
   public static int getStomachCapacity() {
     if (!KoLCharacter.canEat()) {
       return 0;
     }
 
-    int baseCapacity;
-
-    if (ascensionClass != null) {
-      var classCapacity = ascensionClass.getStomachCapacity();
-      baseCapacity =
-          classCapacity != null ? classCapacity : KoLCharacter.getPath().getStomachCapacity();
-    } else {
-      baseCapacity = 15;
-    }
-
-    return baseCapacity
-        + (int) KoLCharacter.currentNumericModifier(DoubleModifier.STOMACH_CAPACITY);
+    return getCapacity(
+        AscensionClass::getStomachCapacity,
+        Path::getStomachCapacity,
+        DoubleModifier.STOMACH_CAPACITY);
   }
 
   public static final void setInebriety(final int inebriety) {
@@ -607,17 +615,8 @@ public abstract class KoLCharacter {
       return 0;
     }
 
-    int baseCapacity;
-
-    if (ascensionClass != null) {
-      var classCapacity = ascensionClass.getLiverCapacity();
-      baseCapacity =
-          classCapacity != null ? classCapacity : KoLCharacter.getPath().getLiverCapacity();
-    } else {
-      baseCapacity = 14;
-    }
-
-    return baseCapacity + (int) KoLCharacter.currentNumericModifier(DoubleModifier.LIVER_CAPACITY);
+    return getCapacity(
+        AscensionClass::getLiverCapacity, Path::getLiverCapacity, DoubleModifier.LIVER_CAPACITY);
   }
 
   public static boolean isFallingDown() {
@@ -649,17 +648,8 @@ public abstract class KoLCharacter {
       return 0;
     }
 
-    int baseCapacity;
-
-    if (ascensionClass != null) {
-      var classCapacity = ascensionClass.getSpleenCapacity();
-      baseCapacity =
-          classCapacity != null ? classCapacity : KoLCharacter.getPath().getSpleenCapacity();
-    } else {
-      baseCapacity = 15;
-    }
-
-    return baseCapacity + (int) KoLCharacter.currentNumericModifier(DoubleModifier.SPLEEN_CAPACITY);
+    return getCapacity(
+        AscensionClass::getSpleenCapacity, Path::getSpleenCapacity, DoubleModifier.SPLEEN_CAPACITY);
   }
 
   /**
@@ -1585,28 +1575,7 @@ public abstract class KoLCharacter {
   }
 
   public static int freeRestsAvailable() {
-    int freerests = 0;
-    if (KoLCharacter.hasSkill(SkillPool.DISCO_NAP)) ++freerests;
-    if (KoLCharacter.hasSkill(SkillPool.ADVENTURER_OF_LEISURE)) freerests += 2;
-    if (KoLCharacter.hasSkill(SkillPool.EXECUTIVE_NARCOLEPSY)) ++freerests;
-    // Unconscious Collective contributes in G-Lover (e.g.) but not in Standard
-    if (StandardRequest.isAllowed(RestrictedItemType.FAMILIARS, "Unconscious Collective")
-        && KoLCharacter.ownedFamiliar(FamiliarPool.UNCONSCIOUS_COLLECTIVE).isPresent())
-      freerests += 3;
-    if (KoLCharacter.hasSkill(SkillPool.FOOD_COMA)) freerests += 10;
-    if (KoLCharacter.hasSkill(SkillPool.DOG_TIRED)) freerests += 5;
-    if (KoLConstants.chateau.contains(ChateauRequest.CHATEAU_FAN)) freerests += 5;
-    if (StandardRequest.isAllowed(RestrictedItemType.ITEMS, "Distant Woods Getaway Brochure")
-        && Preferences.getBoolean("getawayCampsiteUnlocked")) ++freerests;
-    if (StandardRequest.isAllowed(RestrictedItemType.SKILLS, "Long Winter's Nap")
-        && KoLCharacter.hasSkill(SkillPool.LONG_WINTERS_NAP)) freerests += 5;
-    if (InventoryManager.getCount(ItemPool.MOTHERS_NECKLACE) > 0
-        || KoLCharacter.hasEquipped(ItemPool.MOTHERS_NECKLACE)) freerests += 5;
-    if (InventoryManager.getCount(ItemPool.CINCHO_DE_MAYO) > 0
-        || KoLCharacter.hasEquipped(ItemPool.CINCHO_DE_MAYO)) freerests += 3;
-    if (InventoryManager.getCount(ItemPool.REPLICA_CINCHO_DE_MAYO) > 0
-        || KoLCharacter.hasEquipped(ItemPool.REPLICA_CINCHO_DE_MAYO)) freerests += 3;
-    return freerests;
+    return (int) KoLCharacter.currentNumericModifier(DoubleModifier.FREE_RESTS);
   }
 
   public static int freeRestsRemaining() {
@@ -5243,6 +5212,9 @@ public abstract class KoLCharacter {
     // Organ capacity
     newModifiers.applyAdditionalStomachCapacityModifiers();
     newModifiers.applyAdditionalSpleenCapacityModifiers();
+
+    // free rests
+    newModifiers.applyAdditionalFreeRestModifiers();
 
     // Lastly, experience adjustment also implicitly depends on
     // monster level.  Add that information.

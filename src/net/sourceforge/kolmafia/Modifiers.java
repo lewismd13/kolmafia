@@ -39,8 +39,10 @@ import net.sourceforge.kolmafia.request.CharPaneRequest.Companion;
 import net.sourceforge.kolmafia.request.EquipmentRequest;
 import net.sourceforge.kolmafia.request.FloristRequest;
 import net.sourceforge.kolmafia.request.FloristRequest.Florist;
+import net.sourceforge.kolmafia.request.StandardRequest;
 import net.sourceforge.kolmafia.request.UseSkillRequest;
 import net.sourceforge.kolmafia.session.AutumnatonManager;
+import net.sourceforge.kolmafia.session.InventoryManager;
 import net.sourceforge.kolmafia.utilities.Indexed;
 import net.sourceforge.kolmafia.utilities.IntOrString;
 
@@ -959,12 +961,12 @@ public class Modifiers {
     }
     var hareAdv = Preferences.getInteger("_hareAdv");
     if (hareAdv > 0) {
-      this.addDouble(DoubleModifier.ADVENTURES, hareAdv, ModifierType.FAMILIAR, FamiliarPool.HARE);
+      this.addDouble(DoubleModifier.ADVENTURES, hareAdv, ModifierType.FAMILIAR, "Wild Hare");
     }
     var gibberAdv = Preferences.getInteger("_gibbererAdv");
     if (gibberAdv > 0) {
       this.addDouble(
-          DoubleModifier.ADVENTURES, gibberAdv, ModifierType.FAMILIAR, FamiliarPool.GIBBERER);
+          DoubleModifier.ADVENTURES, gibberAdv, ModifierType.FAMILIAR, "Squamous Gibberer");
     }
     var usedBorrowedTime = Preferences.getBoolean("_borrowedTimeUsed");
     if (usedBorrowedTime) {
@@ -1005,6 +1007,30 @@ public class Modifiers {
     if (Preferences.getInteger("lastStillBeatingSpleen") == KoLCharacter.getAscensions()) {
       this.addDouble(
           DoubleModifier.SPLEEN_CAPACITY, 1, ModifierType.ITEM, ItemPool.STILL_BEATING_SPLEEN);
+    }
+  }
+
+  public final void applyAdditionalFreeRestModifiers() {
+    // Unconscious Collective contributes in G-Lover (e.g.) but not in Standard
+    if (StandardRequest.isAllowed(RestrictedItemType.FAMILIARS, "Unconscious Collective")
+        && KoLCharacter.ownedFamiliar(FamiliarPool.UNCONSCIOUS_COLLECTIVE).isPresent()) {
+      this.addDouble(
+          DoubleModifier.FREE_RESTS, 3, ModifierType.TERRARIUM_FAMILIAR, "Unconscious Collective");
+    }
+    if (StandardRequest.isAllowed(RestrictedItemType.ITEMS, "Distant Woods Getaway Brochure")
+        && Preferences.getBoolean("getawayCampsiteUnlocked")) {
+      this.addDouble(DoubleModifier.FREE_RESTS, 1, ModifierType.ITEM, ItemPool.GETAWAY_BROCHURE);
+    }
+    if (InventoryManager.equippedOrInInventory(ItemPool.MOTHERS_NECKLACE)) {
+      this.addDouble(
+          DoubleModifier.FREE_RESTS, 5, ModifierType.INVENTORY_ITEM, "mother's necklace");
+    }
+    if (InventoryManager.equippedOrInInventory(ItemPool.CINCHO_DE_MAYO)) {
+      this.addDouble(DoubleModifier.FREE_RESTS, 3, ModifierType.INVENTORY_ITEM, "Cincho de Mayo");
+    }
+    if (InventoryManager.equippedOrInInventory(ItemPool.REPLICA_CINCHO_DE_MAYO)) {
+      this.addDouble(
+          DoubleModifier.FREE_RESTS, 3, ModifierType.INVENTORY_ITEM, "replica Cincho de Mayo");
     }
   }
 
