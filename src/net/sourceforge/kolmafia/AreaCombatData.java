@@ -24,6 +24,7 @@ import net.sourceforge.kolmafia.persistence.MonsterDatabase;
 import net.sourceforge.kolmafia.persistence.MonsterDatabase.Element;
 import net.sourceforge.kolmafia.persistence.MonsterDatabase.Phylum;
 import net.sourceforge.kolmafia.persistence.MonsterDrop;
+import net.sourceforge.kolmafia.persistence.MonsterDrop.DropFlag;
 import net.sourceforge.kolmafia.persistence.QuestDatabase;
 import net.sourceforge.kolmafia.persistence.QuestDatabase.Quest;
 import net.sourceforge.kolmafia.preferences.Preferences;
@@ -252,7 +253,7 @@ public class AreaCombatData {
       name = name.substring(0, colon);
       String flag = null;
 
-      if (weight.length() == 0) {
+      if (weight.isEmpty()) {
         KoLmafia.updateDisplay("Missing entry after colon for " + name + " in combats.txt.");
         return false;
       }
@@ -1056,7 +1057,7 @@ public class AreaCombatData {
       final List<MonsterDrop> items,
       final List<Double> pocketRates,
       boolean fullString) {
-    if (items.size() == 0) {
+    if (items.isEmpty()) {
       return;
     }
 
@@ -1117,6 +1118,9 @@ public class AreaCombatData {
       String rate1 = this.format(dropRate);
       String rate2 = this.format(effectiveDropRate);
 
+      if (drop.flag() == DropFlag.MULTI_DROP) {
+        buffer.append(drop.itemCount() + " ");
+      }
       buffer.append(drop.item().getName());
       switch (drop.flag()) {
         case UNKNOWN_RATE -> buffer.append(" (unknown drop rate)");
@@ -1155,6 +1159,7 @@ public class AreaCombatData {
           }
         }
         case STEAL_ACCORDION -> buffer.append(" (stealable accordion)");
+        case MULTI_DROP -> buffer.append(" (multidrop)");
         default -> {
           if (stealing) {
             buffer.append(" ");
