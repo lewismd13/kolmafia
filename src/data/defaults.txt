@@ -26,6 +26,8 @@ global	combatHotkey6
 global	combatHotkey7
 global	combatHotkey8
 global	combatHotkey9
+global	commandBufferGCLI
+global	commandBufferTabbedChat
 global	commandLineNamespace
 global	compactChessboard	false
 global	copyAsHTML	false
@@ -1874,6 +1876,7 @@ user	_etchedHourglassUsed	false
 user	_eternalCarBatteryUsed	false
 user	_everfullGlassUsed	false
 user	_expertCornerCutterUsed	0
+user	_extraTimeUsed	0
 user	_eyeAndATwistUsed	false
 user	_fancyChessSetUsed	false
 user	_falloutShelterSpaUsed	false
