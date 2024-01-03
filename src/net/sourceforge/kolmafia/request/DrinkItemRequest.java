@@ -737,6 +737,8 @@ public class DrinkItemRequest extends UseItemRequest {
 
           if (!responseText.contains("discard the no-longer-frosty")) {
             success = false;
+          } else {
+            Preferences.setBoolean("_frostyMugUsed", true);
           }
           break;
       }
@@ -846,8 +848,12 @@ public class DrinkItemRequest extends UseItemRequest {
         }
       }
       case ItemPool.FERMENTED_PICKLE_JUICE -> {
+        Preferences.setBoolean("_pickleJuiceDrunk", true);
         KoLCharacter.setSpleenUse(KoLCharacter.getSpleenUse() - 5 * item.getCount());
         KoLCharacter.updateStatus();
+      }
+      case ItemPool.HODGMANS_BLANKET -> {
+        Preferences.setBoolean("_hodgmansBlanketDrunk", true);
       }
       case ItemPool.MINI_MARTINI -> Preferences.increment("miniMartinisDrunk", item.getCount());
       case ItemPool.GETS_YOU_DRUNK -> Preferences.setInteger("getsYouDrunkTurnsLeft", 4);
