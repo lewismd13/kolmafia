@@ -995,7 +995,9 @@ user	lastSlimeVial3893
 user	lastSlimeVial3894
 user	lastSlimeVial3895
 user	lastSlimeVial3896
+user	lastSelectedFaxbot
 user	lastStillBeatingSpleen	-1
+user	lastSuccessfulFaxbot
 user	lastTavernAscension	0
 user	lastTavernSquare	0
 user	lastTelescopeReset	-1
@@ -1649,6 +1651,7 @@ user	wereProfessorPoints	0
 user	wereProfessorRend	0
 user	wereProfessorResearchPoints	0
 user	wereProfessorStomach	0
+user	wereProfessorTransformTurns	0
 user	whetstonesUsed	0
 user	wildfireBarrelCaulked	false
 user	wildfireDusted	false
