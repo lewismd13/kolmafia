@@ -2908,8 +2908,8 @@
 2905	Big Eyes	yameye.gif	591a425ca0ccb96788051388c5e581eb	neutral	none
 2906	Vessel of Magic	yamvessel.gif	b05746e8d34ef035bb7785fec0969265	neutral	none
 2907	Walled In	wallshield.gif	ac00a12dba132bffe22567b7c63ba2c8	neutral	none
-2908	Caught Yam-Handed	yam.gif	7804213456259ccd0588f39945748e05	neutral	none
-2909	Memories of Cheesier Age	yamcheese.gif	69a72a96a895bef2a452fe02a5b7a0fc	neutral	none
+2908	Caught Yam-Handed	yam.gif	7804213456259ccd0588f39945748e05	neutral	none	mayam resonance caught yam-handed
+2909	Memories of Cheesier Age	yamcheese.gif	69a72a96a895bef2a452fe02a5b7a0fc	neutral	none	mayam resonance memories of cheesier age
 2910	Eye of Moxie	eye_moxie.gif	04e76c36a6a6c546028e284476108294	neutral	none
 2911	Eye of Muscle	eye_muscle.gif	7970bfd6b6333e51ef9ad1aaa55287c7	neutral	none
 2912	Eye of Mysticality	eye_mysticality.gif	b46f79af7d02565f572256eed2fd72ca	neutral	none
@@ -2919,3 +2919,6 @@
 2916	Eye of Sleaze	eye_sleaze.gif	8fab7c874601648ba09185b0e0adae17	neutral	none
 2917	Eye of Fear	eye_spooky.gif	ad97eb06bbd69f2ff5747e24378ab817	neutral	none
 2918	Eye of Stench	eye_stench.gif	9665117fd2b2f156506de27fd6572a5e	neutral	none
+2919	Hippy Antimilitarism	document.gif	e044e8b109d64a10ec19598920f846e8	neutral	none	use 1 mini kiwi antimilitaristic hippy petition
+2920	Incredibly Healthy	kiwi_pill.gif	8fa125fb5bcb1a66079b1ff970d7e5fd	neutral	none	use 1 mini kiwi illicit antibiotic
+2921	Aspirinated Lips	kiwi_lipstick.gif	9e5dfff0ab057887d958c0fb5609c2c1	neutral	none	use 1 mini kiwi-flavored aspirin-injecting lipstick
