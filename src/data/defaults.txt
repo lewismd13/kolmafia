@@ -2450,7 +2450,8 @@ user	_tonicDjinn	false
 user	_transponderDrops	0
 user	_treasuryEliteMeatCollected	false
 user	_treasuryHaremMeatCollected	false
-user	_trickCoinMonster	
+user	_trickCoinMonster
+user	_trickOrTreatBlock
 user	_trivialAvocationsGame	false
 user	_tryptophanDartUsed	false
 user	_turkeyBlastersUsed	0
@@ -3303,6 +3304,7 @@ user	choiceAdventure1489	3
 user	choiceAdventure1491	0
 user	choiceAdventure1494	0
 user	choiceAdventure1505	0
+user	choiceAdventure1528	1
 user	lockedItem4637	true
 user	lockedItem4638	true
 user	lockedItem4639	true
