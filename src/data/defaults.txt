@@ -2171,6 +2171,7 @@ user	_latteCopyUsed	false
 user	_latteDrinkUsed	false
 user	_latteMonster
 user	_latteRefillsUsed	0
+user	_lawOfAveragesUsed	0
 user	_leafblowerML	1
 user	_leafAntEggCrafted	false
 user	_leafDayShortenerCrafted	false
@@ -2396,6 +2397,7 @@ user	_skateBuff2	false
 user	_skateBuff3	false
 user	_skateBuff4	false
 user	_skateBuff5	false
+user	_slimeVialsHarvested	0
 user	_sleazeAirportToday	false
 user	_sloppyDinerBeachBucks	0
 user	_smilesOfMrA	0
@@ -2457,6 +2459,7 @@ user	_stolenAccordions
 user	_strangeStalagmiteUsed	false
 user	_streamsCrossed	false
 user	_stressBallSqueezes	0
+user	_structuralEmberUsed	false
 user	_stuffedPocketwatchUsed	false
 user	_styxSprayUsed	false
 user	_sugarSummons	0
