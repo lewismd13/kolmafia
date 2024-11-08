@@ -187,6 +187,45 @@ public class FightRequestTest {
     }
   }
 
+  @Nested
+  class CookBookBat {
+    @ParameterizedTest
+    @CsvSource({
+      "test_fight_cookbookbat_quest_new_1.html,skullery maid,The Haunted Kitchen",
+      "test_fight_cookbookbat_quest_new_2.html,crate,Noob Cave",
+      "test_fight_cookbookbat_quest_reminder_1.html,,The Haunted Kitchen",
+      "test_fight_cookbookbat_quest_reminder_2.html,crate,",
+    })
+    public void handlesQuest(String file, String monsterName, String locationName) {
+      var cleanups =
+          new Cleanups(
+              withFamiliar(FamiliarPool.COOKBOOKBAT),
+              withProperty("_cookbookbatQuestMonster", ""),
+              withProperty("_cookbookbatQuestSuggestedLocation", ""));
+      try (cleanups) {
+        parseCombatData("request/" + file);
+        assertThat("_cookbookbatQuestMonster", isSetTo(monsterName == null ? "" : monsterName));
+        assertThat(
+            "_cookbookbatQuestSuggestedLocation",
+            isSetTo(locationName == null ? "" : locationName));
+      }
+    }
+
+    @Test
+    public void handlesQuestComplete() {
+      var cleanups =
+          new Cleanups(
+              withFamiliar(FamiliarPool.COOKBOOKBAT),
+              withProperty("_cookbookbatQuestMonster", "skullery maid"),
+              withProperty("_cookbookbatQuestSuggestedLocation", "The Haunted Kitchen"));
+      try (cleanups) {
+        parseCombatData("request/test_fight_cookbookbat_quest_complete.html");
+        assertThat("_cookbookbatQuestMonster", isSetTo(""));
+        assertThat("_cookbookbatQuestSuggestedLocation", isSetTo(""));
+      }
+    }
+  }
+
   @Test
   public void gnomeAdv() {
     var cleanups =
@@ -2877,13 +2916,45 @@ public class FightRequestTest {
   @Nested
   class Authority {
     @Test
-    public void canDetectAssertAuthority() {
+    void canDetectAssertAuthority() {
       var cleanups = new Cleanups(withProperty("_assertYourAuthorityCast", 0), withFight());
       try (cleanups) {
         parseCombatData(
             "request/test_fight_sheriff_authority.html", "fight.php?action=skill&whichskill=7532");
         assertThat("_assertYourAuthorityCast", isSetTo(1));
       }
+    }
+  }
+
+  @Nested
+  class PeaceTurkey {
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3, 4, 5, 6, 7})
+    void canTrackProcIndex(final int index) {
+      var cleanups =
+          new Cleanups(
+              withProperty("peaceTurkeyIndex", index > 0 ? 0 : 5),
+              withFamiliar(FamiliarPool.PEACE_TURKEY),
+              withFight());
+      try (cleanups) {
+        parseCombatData("request/test_fight_peace_turkey_" + index + ".html");
+        assertThat("peaceTurkeyIndex", isSetTo(index));
+      }
+    }
+  }
+
+  @Test
+  public void canDetectSplitPeaSoupBanish() {
+    var cleanups = new Cleanups(withFight(), withBanishedMonsters(""));
+
+    try (cleanups) {
+      parseCombatData(
+          "request/test_fight_split_pea_soup.html",
+          "fight.php?action=useitem&whichitem=11685&whichitem2=0");
+
+      assertThat(
+          "banishedMonsters",
+          hasStringValue(startsWith("pair of burnouts:handful of split pea soup:")));
     }
   }
 }
