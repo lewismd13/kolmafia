@@ -1160,6 +1160,7 @@ public abstract class ChoiceControl {
         // The tweezers you used dissolve in the caustic fluid. Rats.
         if (text.contains("dissolve in the caustic fluid")) {
           ResultProcessor.processItem(ItemPool.AUTOPSY_TWEEZERS, -1);
+          Preferences.increment("autopsyTweezersUsed");
         }
         return;
 
@@ -9047,6 +9048,21 @@ public abstract class ChoiceControl {
 
       case 1537: // TakerSpace
         CampgroundRequest.setCurrentWorkshedItem(ItemPool.TAKERSPACE_LETTER_OF_MARQUE);
+
+        // visiting the choice for the first time delivers the daily supplies
+        Preferences.setBoolean("_takerSpaceSuppliesDelivered", true);
+        Matcher supplies =
+            Pattern.compile(
+                    "<b>Current Supplies:</b><br>(\\d+) stolen spices<br>(\\d+) robbed rums<br>(\\d+) absconded-with anchors?<br>(\\d+) misappropriated mainmasts<br>(\\d+) snatched silk<br>(\\d+) gaffled gold<br>")
+                .matcher(text);
+        if (supplies.find()) {
+          Preferences.setInteger("takerSpaceSpice", Integer.parseInt(supplies.group(1)));
+          Preferences.setInteger("takerSpaceRum", Integer.parseInt(supplies.group(2)));
+          Preferences.setInteger("takerSpaceAnchor", Integer.parseInt(supplies.group(3)));
+          Preferences.setInteger("takerSpaceMast", Integer.parseInt(supplies.group(4)));
+          Preferences.setInteger("takerSpaceSilk", Integer.parseInt(supplies.group(5)));
+          Preferences.setInteger("takerSpaceGold", Integer.parseInt(supplies.group(6)));
+        }
         break;
     }
   }
