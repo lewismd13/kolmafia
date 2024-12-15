@@ -1844,7 +1844,10 @@ public class ItemPool {
   public static final int LOST_KEY = 5680;
   public static final int NOTE_FROM_CLANCY = 5682;
   public static final int BURT = 5683;
+  public static final int JUICY_GARBAGE = 5684;
+  public static final int NANOPOLYMER_SPIDER_WEB = 5686;
   public static final int AUTOPSY_TWEEZERS = 5687;
+  public static final int DRONE_SELFDESTRUCT_CHIP = 5689;
   public static final int ONE_MEAT = 5697;
   public static final int LOST_GLASSES = 5698;
   public static final int LITTLE_MANNEQUIN = 5702;
@@ -3816,6 +3819,7 @@ public class ItemPool {
   public static final int SPLIT_PEA_SOUP = 11685;
   public static final int TAKERSPACE_LETTER_OF_MARQUE = 11687;
   public static final int PIRATE_DINGHY = 11705;
+  public static final int ANCHOR_BOMB = 11706;
 
   private ItemPool() {}
 
