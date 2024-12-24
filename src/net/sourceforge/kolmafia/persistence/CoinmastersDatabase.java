@@ -48,6 +48,14 @@ public class CoinmastersDatabase {
     return shopRows.get(key);
   }
 
+  public static final ShopRow getRowData(final int row) {
+    return rowData.get(row);
+  }
+
+  public static final String getRowShop(final int row) {
+    return rowShop.get(row);
+  }
+
   // *** Old style "shop.php" (and other) Coinmasters
   // buy using buyItems and buyPrices
   // sell using sellItems and sellPrices.
