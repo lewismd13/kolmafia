@@ -1989,6 +1989,7 @@ user	_edDefeats	0
 user	_edLashCount	0
 user	_eldritchHorrorEvoked	false
 user	_eldritchTentacleFought	false
+user	_elfGuardCookingUsed	0
 user	_elronsCasts	0
 user	_emberingHulkFought	false
 user	_enamorangs	0
@@ -2113,6 +2114,7 @@ user	_hobbyHorseUsed	false
 user	_hoboUnderlingSummons	0
 user	_hodgmansBlanketDrunk	false
 user	_holidayFunUsed	false
+user	_holidayMultitaskingUsed	0
 user	_holoWristCrystal	false
 user	_holoWristDrops	0
 user	_holoWristProgress	0
@@ -2258,6 +2260,9 @@ user	_mayflowerDrops	0
 user	_mayflySummons	0
 user	_mayoDeviceRented	false
 user	_mayoTankSoaked	false
+user	_mcHugeLargeAvalancheUses	0
+user	_mcHugeLargeSkiPlowUses	0
+user	_mcHugeLargeSlashUses	0
 user	_meatballMachineUsed	false
 user	_meatifyMatterUsed	false
 user	_mediumSiphons	0
@@ -2305,6 +2310,7 @@ user	_noHatModifier
 user	_noobSkillCount	0
 user	_nuclearStockpileUsed	0
 user	_oilExtracted	0
+user	_oldSchoolCocktailCraftingUsed	0
 user	_olfactionsUsed	0
 user	_olympicSwimmingPool	false
 user	_olympicSwimmingPoolItemFound	false
